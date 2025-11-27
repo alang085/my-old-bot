@@ -1,0 +1,138 @@
+========================================
+最新代码修改文件清单
+========================================
+
+【已修改的文件】（需要提交到 Git）
+
+1. main.py
+   - 添加了路径设置代码
+   - 添加了调试信息输出
+   - 确保项目根目录在 Python 路径中
+
+2. handlers/__init__.py
+   - 路径设置代码移到文件开头（所有导入之前）
+   - 确保子模块能正确导入依赖
+
+3. callbacks/__init__.py
+   - 路径设置代码移到文件开头（所有导入之前）
+   - 确保子模块能正确导入依赖
+
+4. utils/__init__.py
+   - 路径设置代码移到文件开头（所有导入之前）
+   - 确保子模块能正确导入依赖
+
+5. decorators.py
+   - 路径设置代码移到文件开头（所有导入之前）
+
+6. handlers/amount_handlers.py
+   - 路径设置代码移到文件开头（所有导入之前）
+
+7. callbacks/schedule_callbacks.py
+   - 修复了 f-string 嵌套语法错误（第 78 行）
+   - 改为先计算值再添加到消息中
+
+【新增的文件】
+
+1. 部署文件清单.md
+   - Zeabur 部署所需文件清单
+
+2. 代码导出清单.md
+   - 完整的代码导出清单和说明
+
+3. 修改文件清单.txt
+   - 本文件
+
+========================================
+需要提交到 Git 的文件
+========================================
+
+【核心配置文件】
+✓ Procfile
+✓ requirements.txt
+✓ runtime.txt
+✓ zeabur.json
+✓ .gitignore
+
+【主程序文件】
+✓ main.py (已修改)
+✓ config.py
+✓ constants.py
+✓ db_operations.py
+✓ decorators.py (已修改)
+✓ init_db.py
+
+【handlers/ 目录】
+✓ handlers/__init__.py (已修改)
+✓ handlers/command_handlers.py
+✓ handlers/order_handlers.py
+✓ handlers/amount_handlers.py (已修改)
+✓ handlers/report_handlers.py
+✓ handlers/search_handlers.py
+✓ handlers/message_handlers.py
+✓ handlers/broadcast_handlers.py
+✓ handlers/payment_handlers.py
+✓ handlers/schedule_handlers.py
+✓ handlers/attribution_handlers.py
+
+【callbacks/ 目录】
+✓ callbacks/__init__.py (已修改)
+✓ callbacks/main_callback.py
+✓ callbacks/order_callbacks.py
+✓ callbacks/payment_callbacks.py
+✓ callbacks/report_callbacks.py
+✓ callbacks/schedule_callbacks.py (已修改)
+✓ callbacks/search_callbacks.py
+
+【utils/ 目录】
+✓ utils/__init__.py (已修改)
+✓ utils/chat_helpers.py
+✓ utils/date_helpers.py
+✓ utils/message_helpers.py
+✓ utils/order_helpers.py
+✓ utils/schedule_executor.py
+✓ utils/stats_helpers.py
+
+【配置文件示例】
+✓ user_config.example.py
+
+【文档文件】
+✓ README.md
+✓ README_部署说明.md
+✓ README_配置说明.md
+✓ 部署文件清单.md
+✓ 代码导出清单.md
+
+========================================
+不应提交的文件（已在 .gitignore 中）
+========================================
+
+✗ user_config.py (包含敏感信息)
+✗ *.db (数据库文件)
+✗ __pycache__/ (Python 缓存)
+✗ .env (环境变量文件)
+
+========================================
+Git 提交命令
+========================================
+
+git add .
+git commit -m "修复模块导入路径问题和语法错误
+
+- 修复 ModuleNotFoundError: No module named 'handlers'
+- 修复 ModuleNotFoundError: No module named 'config'
+- 修复 f-string 嵌套语法错误
+- 添加路径设置代码到所有 __init__.py 文件
+- 添加调试信息输出
+- 更新部署文档"
+
+git push
+
+========================================
+环境变量配置（在 Zeabur 平台设置）
+========================================
+
+BOT_TOKEN=你的Telegram机器人Token
+ADMIN_USER_IDS=你的用户ID（多个用逗号分隔）
+
+========================================
+

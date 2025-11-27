@@ -57,10 +57,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("❌ 数据错误")
             return
 
-        message = (
-            f"Your next payment is due on {date_str} ({weekday_str}) "
-            f"for {principal_12:.2f} to defer the principal payment for one week.\n\n"
-            f"Your outstanding interest is {outstanding_interest:.2f}."
+        # 使用统一的播报模板函数
+        from utils.broadcast_helpers import format_broadcast_message
+        message = format_broadcast_message(
+            principal=principal_12,
+            principal_12=principal_12,  # 本金12%版本，两个值相同
+            outstanding_interest=outstanding_interest,
+            date_str=date_str,
+            weekday_str=weekday_str
         )
 
         try:
