@@ -195,6 +195,10 @@ async def handle_payment_callback(update: Update, context: ContextTypes.DEFAULT_
             [
                 InlineKeyboardButton(
                     "💳 发送账户", callback_data="payment_select_account")
+            ],
+            [
+                InlineKeyboardButton(
+                    "🔄 更改归属", callback_data="order_action_change_attribution")
             ]
         ]
 

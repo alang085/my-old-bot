@@ -135,6 +135,10 @@ async def show_current_order(update: Update, context: ContextTypes.DEFAULT_TYPE)
         [
             InlineKeyboardButton(
                 "💳 发送账户", callback_data="payment_select_account")
+        ],
+        [
+            InlineKeyboardButton(
+                "🔄 更改归属", callback_data="order_action_change_attribution")
         ]
     ]
 

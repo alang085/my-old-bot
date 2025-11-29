@@ -178,8 +178,9 @@ async def set_breach(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await reply_func(message)
         return
 
-    if order['state'] != 'overdue':
-        message = "❌ Failed: Order must be overdue."
+    # 允许从 normal 或 overdue 变更为 breach
+    if order['state'] not in ['normal', 'overdue']:
+        message = "❌ Failed: Order must be normal or overdue."
         await reply_func(message)
         return
 
@@ -275,6 +276,9 @@ async def set_breach_end(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 设置状态，等待输入
     context.user_data['state'] = 'WAITING_BREACH_END_AMOUNT'
     context.user_data['breach_end_chat_id'] = chat_id
+
+
+
 
 
 

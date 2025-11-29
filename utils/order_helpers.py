@@ -104,7 +104,7 @@ async def update_order_state_from_title(update: Update, context: ContextTypes.DE
         # 3. 执行状态变更逻辑
         # 逻辑矩阵:
         # Normal/Overdue -> Breach: 移动统计 (Valid -> Breach)
-        # Breach -> Normal/Overdue: 移动统计 (Breach -> Valid)
+        # Breach -> Normal/Overdue: 禁止反向变更（违约只能到违约完成）
         # Normal <-> Overdue: 仅更新状态 (都在 Valid 统计下)
 
         is_current_valid = current_state in ['normal', 'overdue']
@@ -112,6 +112,11 @@ async def update_order_state_from_title(update: Update, context: ContextTypes.DE
 
         is_current_breach = current_state == 'breach'
         is_target_breach = target_state == 'breach'
+
+        # 禁止违约状态反向变更为正常/逾期
+        if is_current_breach and is_target_valid:
+            logger.info(f"订单 {order_id} 当前状态为违约，禁止反向变更为 {target_state}")
+            return
 
         # 更新数据库状态
         if await db_operations.update_order_state(chat_id, target_state):
@@ -122,12 +127,6 @@ async def update_order_state_from_title(update: Update, context: ContextTypes.DE
                 await update_all_stats('valid', -amount, -1, group_id)
                 await update_all_stats('breach', amount, 1, group_id)
                 await reply_in_group(update, f"🔄 State Changed: {target_state} (Auto)\nStats moved to Breach.")
-
-            elif is_current_breach and is_target_valid:
-                # Breach -> Valid
-                await update_all_stats('breach', -amount, -1, group_id)
-                await update_all_stats('valid', amount, 1, group_id)
-                await reply_in_group(update, f"🔄 State Changed: {target_state} (Auto)\nStats moved to Valid.")
 
             else:
                 # Normal <-> Overdue (都在 Valid 池中，仅状态变更)

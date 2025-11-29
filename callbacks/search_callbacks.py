@@ -8,7 +8,12 @@ from utils.message_helpers import display_search_results_helper
 async def handle_search_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """处理搜索相关的回调"""
     query = update.callback_query
+    if not query:
+        return
+    
     data = query.data
+    if not data:
+        return
 
     if data == "search_menu_state":
         keyboard = [
@@ -95,13 +100,34 @@ async def handle_search_callback(update: Update, context: ContextTypes.DEFAULT_T
         # 获取查找结果
         orders = context.user_data.get('search_orders', [])
         if not orders:
-            await query.answer("❌ 没有找到订单，请先使用查找功能")
+            await query.answer("❌ 没有找到订单，请先使用查找功能", show_alert=True)
+            # 尝试重新显示查找菜单
+            try:
+                keyboard = [
+                    [
+                        InlineKeyboardButton(
+                            "按状态", callback_data="search_menu_state"),
+                        InlineKeyboardButton(
+                            "按归属ID", callback_data="search_menu_attribution"),
+                        InlineKeyboardButton(
+                            "按星期分组", callback_data="search_menu_group")
+                    ]
+                ]
+                await query.edit_message_text(
+                    "❌ 没有找到订单\n\n请先使用查找功能找到订单后，再更改归属。",
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+            except Exception:
+                pass
             return
 
         # 获取所有归属ID列表
         all_group_ids = await db_operations.get_all_group_ids()
         if not all_group_ids:
-            await query.answer("❌ 没有可用的归属ID")
+            await query.answer("❌ 没有可用的归属ID", show_alert=True)
+            await query.edit_message_text(
+                "❌ 没有可用的归属ID\n\n请先使用 /create_attribution 创建归属ID。"
+            )
             return
 
         # 显示归属ID选择界面
@@ -136,26 +162,51 @@ async def handle_search_callback(update: Update, context: ContextTypes.DEFAULT_T
 
         orders = context.user_data.get('search_orders', [])
         if not orders:
-            await query.answer("❌ 没有找到订单")
+            await query.answer("❌ 没有找到订单，请重新查找", show_alert=True)
+            # 尝试重新显示查找菜单
+            try:
+                keyboard = [
+                    [
+                        InlineKeyboardButton(
+                            "按状态", callback_data="search_menu_state"),
+                        InlineKeyboardButton(
+                            "按归属ID", callback_data="search_menu_attribution"),
+                        InlineKeyboardButton(
+                            "按星期分组", callback_data="search_menu_group")
+                    ]
+                ]
+                await query.edit_message_text(
+                    "❌ 查找结果已过期\n\n请重新使用查找功能。",
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+            except Exception:
+                pass
             return
 
         # 执行归属变更
-        from handlers.attribution_handlers import change_orders_attribution
-        success_count, fail_count = await change_orders_attribution(
-            update, context, orders, new_group_id
-        )
+        try:
+            from handlers.attribution_handlers import change_orders_attribution
+            success_count, fail_count = await change_orders_attribution(
+                update, context, orders, new_group_id
+            )
 
-        result_msg = (
-            f"✅ 归属变更完成\n\n"
-            f"成功: {success_count} 个订单\n"
-            f"失败: {fail_count} 个订单"
-        )
+            result_msg = (
+                f"✅ 归属变更完成\n\n"
+                f"成功: {success_count} 个订单\n"
+                f"失败: {fail_count} 个订单\n\n"
+                f"新归属ID: {new_group_id}"
+            )
 
-        await query.edit_message_text(result_msg)
-        await query.answer("✅ 归属变更完成")
+            await query.edit_message_text(result_msg)
+            await query.answer("✅ 归属变更完成")
 
-        # 清除查找结果
-        context.user_data.pop('search_orders', None)
+            # 清除查找结果
+            context.user_data.pop('search_orders', None)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"归属变更失败: {e}", exc_info=True)
+            await query.answer(f"❌ 归属变更失败: {str(e)}", show_alert=True)
         return
 
     # 执行查找
