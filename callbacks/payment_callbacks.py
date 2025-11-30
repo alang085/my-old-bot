@@ -4,6 +4,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 import db_operations
 from decorators import authorized_required
+from utils.chat_helpers import is_group_chat
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ async def handle_payment_callback(update: Update, context: ContextTypes.DEFAULT_
 
     if data == "payment_select_account":
         # 在群聊中选择账户
+        is_group = is_group_chat(update)
         keyboard = [
             [
                 InlineKeyboardButton(
@@ -36,22 +38,27 @@ async def handle_payment_callback(update: Update, context: ContextTypes.DEFAULT_
                     "💳 PayMaya", callback_data="payment_choose_paymaya_type")
             ],
             [
-                InlineKeyboardButton("🔙 返回", callback_data="order_action_back")
+                InlineKeyboardButton(
+                    "🔙 Back" if is_group else "🔙 返回",
+                    callback_data="order_action_back")
             ]
         ]
 
+        msg_text = "💳 Select Account:" if is_group else "💳 选择要发送的账户："
         await query.edit_message_text(
-            "💳 选择要发送的账户：",
+            msg_text,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return
 
     if data == "payment_choose_gcash_type":
         # 显示GCASH所有账户名字列表
+        is_group = is_group_chat(update)
         accounts = await db_operations.get_payment_accounts_by_type('gcash')
 
         if not accounts or not any(acc.get('account_name') for acc in accounts):
-            await query.answer("❌ 没有可用的GCASH账户", show_alert=True)
+            msg = "❌ No available GCASH account" if is_group else "❌ 没有可用的GCASH账户"
+            await query.answer(msg, show_alert=True)
             return
 
         keyboard = []
@@ -67,26 +74,31 @@ async def handle_payment_callback(update: Update, context: ContextTypes.DEFAULT_
                 ])
 
         if not keyboard:
-            await query.answer("❌ 没有可用的GCASH账户", show_alert=True)
+            msg = "❌ No available GCASH account" if is_group else "❌ 没有可用的GCASH账户"
+            await query.answer(msg, show_alert=True)
             return
 
         keyboard.append([
             InlineKeyboardButton(
-                "🔙 返回", callback_data="payment_select_account")
+                "🔙 Back" if is_group else "🔙 返回",
+                callback_data="payment_select_account")
         ])
 
+        msg_text = "💳 GCASH - Select Account:" if is_group else "💳 GCASH - 选择账户："
         await query.edit_message_text(
-            "💳 GCASH - 选择账户：",
+            msg_text,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return
 
     if data == "payment_choose_paymaya_type":
         # 显示PayMaya所有账户名字列表
+        is_group = is_group_chat(update)
         accounts = await db_operations.get_payment_accounts_by_type('paymaya')
 
         if not accounts or not any(acc.get('account_name') for acc in accounts):
-            await query.answer("❌ 没有可用的PayMaya账户", show_alert=True)
+            msg = "❌ No available PayMaya account" if is_group else "❌ 没有可用的PayMaya账户"
+            await query.answer(msg, show_alert=True)
             return
 
         keyboard = []
@@ -102,35 +114,42 @@ async def handle_payment_callback(update: Update, context: ContextTypes.DEFAULT_
                 ])
 
         if not keyboard:
-            await query.answer("❌ 没有可用的PayMaya账户", show_alert=True)
+            msg = "❌ No available PayMaya account" if is_group else "❌ 没有可用的PayMaya账户"
+            await query.answer(msg, show_alert=True)
             return
 
         keyboard.append([
             InlineKeyboardButton(
-                "🔙 返回", callback_data="payment_select_account")
+                "🔙 Back" if is_group else "🔙 返回",
+                callback_data="payment_select_account")
         ])
 
+        msg_text = "💳 PayMaya - Select Account:" if is_group else "💳 PayMaya - 选择账户："
         await query.edit_message_text(
-            "💳 PayMaya - 选择账户：",
+            msg_text,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return
 
     if data.startswith("payment_send_account_"):
         # 根据账户ID发送完整账户信息到群组
+        is_group = is_group_chat(update)
         try:
             account_id = int(data.split("_")[-1])
         except (ValueError, IndexError):
-            await query.answer("❌ 无效的账户ID", show_alert=True)
+            msg = "❌ Invalid account ID" if is_group else "❌ 无效的账户ID"
+            await query.answer(msg, show_alert=True)
             return
 
         account = await db_operations.get_payment_account_by_id(account_id)
         if not account:
-            await query.answer("❌ 账户不存在", show_alert=True)
+            msg = "❌ Account not found" if is_group else "❌ 账户不存在"
+            await query.answer(msg, show_alert=True)
             return
 
         if not account.get('account_number'):
-            await query.answer("❌ 账户号码未设置", show_alert=True)
+            msg = "❌ Account number not set" if is_group else "❌ 账户号码未设置"
+            await query.answer(msg, show_alert=True)
             return
 
         account_type = account.get('account_type', '').upper()
@@ -148,19 +167,24 @@ async def handle_payment_callback(update: Update, context: ContextTypes.DEFAULT_
         chat_id = query.message.chat_id
         try:
             await context.bot.send_message(chat_id=chat_id, text=message)
-            await query.answer("✅ 账户已发送到群组")
-            await query.edit_message_text("✅ 账户已发送", reply_markup=None)
+            success_msg = "✅ Account sent" if is_group else "✅ 账户已发送到群组"
+            await query.answer(success_msg)
+            edit_msg = "✅ Account sent" if is_group else "✅ 账户已发送"
+            await query.edit_message_text(edit_msg, reply_markup=None)
         except Exception as e:
             logger.error(f"发送账户失败: {e}", exc_info=True)
-            await query.answer(f"❌ 发送失败: {e}", show_alert=True)
+            error_msg = f"❌ Send failed: {e}" if is_group else f"❌ 发送失败: {e}"
+            await query.answer(error_msg, show_alert=True)
         return
 
     if data == "order_action_back":
         # 返回到订单界面
+        is_group = is_group_chat(update)
         chat_id = query.message.chat_id
         order = await db_operations.get_order_by_chat_id(chat_id)
         if not order:
-            await query.edit_message_text("❌ 当前群组没有活跃订单")
+            msg = "❌ No active order in this group" if is_group else "❌ 当前群组没有活跃订单"
+            await query.edit_message_text(msg)
             return
 
         msg = (
@@ -176,31 +200,61 @@ async def handle_payment_callback(update: Update, context: ContextTypes.DEFAULT_
             f"──────────────────"
         )
 
-        keyboard = [
-            [
-                InlineKeyboardButton(
-                    "✅ 正常", callback_data="order_action_normal"),
-                InlineKeyboardButton(
-                    "⚠️ 逾期", callback_data="order_action_overdue")
-            ],
-            [
-                InlineKeyboardButton("🏁 完成", callback_data="order_action_end"),
-                InlineKeyboardButton(
-                    "🚫 违约", callback_data="order_action_breach")
-            ],
-            [
-                InlineKeyboardButton(
-                    "💸 违约完成", callback_data="order_action_breach_end")
-            ],
-            [
-                InlineKeyboardButton(
-                    "💳 发送账户", callback_data="payment_select_account")
-            ],
-            [
-                InlineKeyboardButton(
-                    "🔄 更改归属", callback_data="order_action_change_attribution")
+        # 群聊使用英文按钮，私聊使用中文
+        if is_group:
+            keyboard = [
+                [
+                    InlineKeyboardButton(
+                        "✅ Normal", callback_data="order_action_normal"),
+                    InlineKeyboardButton(
+                        "⚠️ Overdue", callback_data="order_action_overdue")
+                ],
+                [
+                    InlineKeyboardButton(
+                        "🏁 End", callback_data="order_action_end"),
+                    InlineKeyboardButton(
+                        "🚫 Breach", callback_data="order_action_breach")
+                ],
+                [
+                    InlineKeyboardButton(
+                        "💸 Breach End", callback_data="order_action_breach_end")
+                ],
+                [
+                    InlineKeyboardButton(
+                        "💳 Send Account", callback_data="payment_select_account")
+                ],
+                [
+                    InlineKeyboardButton(
+                        "🔄 Change Attribution", callback_data="order_action_change_attribution")
+                ]
             ]
-        ]
+        else:
+            keyboard = [
+                [
+                    InlineKeyboardButton(
+                        "✅ 正常", callback_data="order_action_normal"),
+                    InlineKeyboardButton(
+                        "⚠️ 逾期", callback_data="order_action_overdue")
+                ],
+                [
+                    InlineKeyboardButton(
+                        "🏁 完成", callback_data="order_action_end"),
+                    InlineKeyboardButton(
+                        "🚫 违约", callback_data="order_action_breach")
+                ],
+                [
+                    InlineKeyboardButton(
+                        "💸 违约完成", callback_data="order_action_breach_end")
+                ],
+                [
+                    InlineKeyboardButton(
+                        "💳 发送账户", callback_data="payment_select_account")
+                ],
+                [
+                    InlineKeyboardButton(
+                        "🔄 更改归属", callback_data="order_action_change_attribution")
+                ]
+            ]
 
         await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
         return

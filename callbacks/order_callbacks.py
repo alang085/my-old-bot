@@ -7,6 +7,7 @@ from handlers.order_handlers import (
 from handlers.command_handlers import show_current_order
 import db_operations
 from handlers.attribution_handlers import change_orders_attribution
+from utils.chat_helpers import is_group_chat
 
 
 async def handle_order_action_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -26,16 +27,21 @@ async def handle_order_action_callback(update: Update, context: ContextTypes.DEF
         chat_id = query.message.chat_id
         order = await db_operations.get_order_by_chat_id(chat_id)
         if not order:
-            await query.answer("❌ 没有找到订单", show_alert=True)
+            is_group = is_group_chat(update)
+            msg = "❌ Order not found" if is_group else "❌ 没有找到订单"
+            await query.answer(msg, show_alert=True)
             return
 
         # 获取所有归属ID列表
         all_group_ids = await db_operations.get_all_group_ids()
         if not all_group_ids:
-            await query.answer("❌ 没有可用的归属ID", show_alert=True)
+            is_group = is_group_chat(update)
+            msg = "❌ No available Group ID" if is_group else "❌ 没有可用的归属ID"
+            await query.answer(msg, show_alert=True)
             return
 
         # 显示归属ID选择界面
+        is_group = is_group_chat(update)
         keyboard = []
         row = []
         for gid in sorted(all_group_ids):
@@ -51,15 +57,29 @@ async def handle_order_action_callback(update: Update, context: ContextTypes.DEF
                 row = []
         if row:
             keyboard.append(row)
+        back_text = "🔙 Back" if is_group else "🔙 返回"
         keyboard.append([InlineKeyboardButton(
-            "🔙 返回", callback_data="order_action_back")])
+            back_text, callback_data="order_action_back")])
+
+        if is_group:
+            msg_text = (
+                f"🔄 Change Attribution\n\n"
+                f"Current: {order['group_id']}\n"
+                f"Order ID: {order['order_id']}\n"
+                f"Amount: {order['amount']:.2f}\n\n"
+                f"Select new Group ID:"
+            )
+        else:
+            msg_text = (
+                f"🔄 更改归属\n\n"
+                f"当前归属: {order['group_id']}\n"
+                f"订单ID: {order['order_id']}\n"
+                f"金额: {order['amount']:.2f}\n\n"
+                f"请选择新的归属ID:"
+            )
 
         await query.edit_message_text(
-            f"🔄 更改归属\n\n"
-            f"当前归属: {order['group_id']}\n"
-            f"订单ID: {order['order_id']}\n"
-            f"金额: {order['amount']:.2f}\n\n"
-            f"请选择新的归属ID:",
+            msg_text,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
         await query.answer()
@@ -72,13 +92,17 @@ async def handle_order_action_callback(update: Update, context: ContextTypes.DEF
         # 获取当前订单
         chat_id = query.message.chat_id
         order = await db_operations.get_order_by_chat_id(chat_id)
+        is_group = is_group_chat(update)
+
         if not order:
-            await query.answer("❌ 没有找到订单", show_alert=True)
+            msg = "❌ Order not found" if is_group else "❌ 没有找到订单"
+            await query.answer(msg, show_alert=True)
             return
 
         # 如果归属ID相同，无需更改
         if order['group_id'] == new_group_id:
-            await query.answer("✅ 归属ID未变更", show_alert=True)
+            msg = "✅ Group ID unchanged" if is_group else "✅ 归属ID未变更"
+            await query.answer(msg, show_alert=True)
             return
 
         # 执行归属变更（单个订单）
@@ -88,11 +112,13 @@ async def handle_order_action_callback(update: Update, context: ContextTypes.DEF
         )
 
         if success_count > 0:
-            await query.answer("✅ 归属变更完成")
+            msg = "✅ Attribution changed" if is_group else "✅ 归属变更完成"
+            await query.answer(msg)
             # 刷新订单信息显示
             await show_current_order(update, context)
         else:
-            await query.answer("❌ 归属变更失败", show_alert=True)
+            msg = "❌ Attribution change failed" if is_group else "❌ 归属变更失败"
+            await query.answer(msg, show_alert=True)
         return
 
     # 处理返回按钮
@@ -123,11 +149,3 @@ async def handle_order_action_callback(update: Update, context: ContextTypes.DEF
         await query.answer()
     except:
         pass
-
-
-
-
-
-
-
-

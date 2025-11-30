@@ -115,30 +115,30 @@ async def show_current_order(update: Update, context: ContextTypes.DEFAULT_TYPE)
         f"──────────────────"
     )
 
-    # 构建操作按钮
+    # 构建操作按钮（群聊使用英文）
     keyboard = [
         [
             InlineKeyboardButton(
-                "✅ 正常", callback_data="order_action_normal"),
+                "✅ Normal", callback_data="order_action_normal"),
             InlineKeyboardButton(
-                "⚠️ 逾期", callback_data="order_action_overdue")
+                "⚠️ Overdue", callback_data="order_action_overdue")
         ],
         [
-            InlineKeyboardButton("🏁 完成", callback_data="order_action_end"),
+            InlineKeyboardButton("🏁 End", callback_data="order_action_end"),
             InlineKeyboardButton(
-                "🚫 违约", callback_data="order_action_breach")
-        ],
-        [
-            InlineKeyboardButton(
-                "💸 违约完成", callback_data="order_action_breach_end")
+                "🚫 Breach", callback_data="order_action_breach")
         ],
         [
             InlineKeyboardButton(
-                "💳 发送账户", callback_data="payment_select_account")
+                "💸 Breach End", callback_data="order_action_breach_end")
         ],
         [
             InlineKeyboardButton(
-                "🔄 更改归属", callback_data="order_action_change_attribution")
+                "💳 Send Account", callback_data="payment_select_account")
+        ],
+        [
+            InlineKeyboardButton(
+                "🔄 Change Attribution", callback_data="order_action_change_attribution")
         ]
     ]
 
@@ -274,26 +274,26 @@ async def update_weekday_groups(update: Update, context: ContextTypes.DEFAULT_TY
     """更新所有订单的星期分组（管理员命令）"""
     try:
         msg = await update.message.reply_text("🔄 开始更新所有订单的星期分组...")
-        
+
         # 直接调用更新逻辑
         from datetime import datetime
         from utils.chat_helpers import get_weekday_group_from_date
-        
+
         all_orders = await db_operations.search_orders_advanced_all_states({})
-        
+
         if not all_orders:
             await msg.edit_text("❌ 没有找到订单")
             return
-        
+
         updated_count = 0
         error_count = 0
         skipped_count = 0
-        
+
         for order in all_orders:
             order_id = order['order_id']
             chat_id = order['chat_id']
             order_date_str = order.get('date', '')
-            
+
             try:
                 # 从订单ID解析日期
                 date_from_id = None
@@ -302,7 +302,8 @@ async def update_weekday_groups(update: Update, context: ContextTypes.DEFAULT_TY
                         date_part = order_id[1:7]
                         try:
                             full_date_str = f"20{date_part}"
-                            date_from_id = datetime.strptime(full_date_str, "%Y%m%d").date()
+                            date_from_id = datetime.strptime(
+                                full_date_str, "%Y%m%d").date()
                         except ValueError:
                             pass
                 else:
@@ -310,40 +311,43 @@ async def update_weekday_groups(update: Update, context: ContextTypes.DEFAULT_TY
                         date_part = order_id[:6]
                         try:
                             full_date_str = f"20{date_part}"
-                            date_from_id = datetime.strptime(full_date_str, "%Y%m%d").date()
+                            date_from_id = datetime.strptime(
+                                full_date_str, "%Y%m%d").date()
                         except ValueError:
                             pass
-                
+
                 # 从date字段解析日期
                 date_from_db = None
                 if order_date_str:
                     try:
-                        date_str = order_date_str.split()[0] if ' ' in order_date_str else order_date_str
-                        date_from_db = datetime.strptime(date_str, "%Y-%m-%d").date()
+                        date_str = order_date_str.split(
+                        )[0] if ' ' in order_date_str else order_date_str
+                        date_from_db = datetime.strptime(
+                            date_str, "%Y-%m-%d").date()
                     except ValueError:
                         pass
-                
+
                 order_date = date_from_id or date_from_db
-                
+
                 if not order_date:
                     skipped_count += 1
                     continue
-                
+
                 # 计算正确的星期分组
                 correct_weekday_group = get_weekday_group_from_date(order_date)
-                
+
                 # 更新
                 success = await db_operations.update_order_weekday_group(chat_id, correct_weekday_group)
-                
+
                 if success:
                     updated_count += 1
                 else:
                     error_count += 1
-                    
+
             except Exception as e:
                 logger.error(f"处理订单 {order_id} 时出错: {e}")
                 error_count += 1
-        
+
         result_msg = (
             f"✅ 更新完成！\n\n"
             f"已更新: {updated_count} 个订单\n"
@@ -351,9 +355,9 @@ async def update_weekday_groups(update: Update, context: ContextTypes.DEFAULT_TY
             f"错误: {error_count} 个订单\n"
             f"总计: {len(all_orders)} 个订单"
         )
-        
+
         await msg.edit_text(result_msg)
-            
+
     except Exception as e:
         logger.error(f"更新星期分组时出错: {e}", exc_info=True)
         await update.message.reply_text(f"❌ 更新失败: {str(e)}")

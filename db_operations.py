@@ -226,8 +226,8 @@ def search_orders_advanced(conn, cursor, criteria: Dict) -> List[Dict]:
         query += " AND state = ?"
         params.append(criteria['state'])
     else:
-        # 默认排除完成和违约完成的订单
-        query += " AND state NOT IN ('end', 'breach_end')"
+        # 默认只查找有效订单（normal和overdue状态）
+        query += " AND state IN ('normal', 'overdue')"
 
     if 'customer' in criteria and criteria['customer']:
         query += " AND customer = ?"
