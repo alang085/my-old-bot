@@ -413,7 +413,7 @@ async def _handle_search_amount_input(update: Update, context: ContextTypes.DEFA
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
     from utils.amount_helpers import parse_amount, distribute_orders_evenly_by_weekday
     from utils.message_helpers import display_search_results_helper
-    
+
     try:
         # 解析金额
         target_amount = parse_amount(text)
@@ -504,6 +504,10 @@ async def _handle_search_amount_input(update: Update, context: ContextTypes.DEFA
             weekday_stats[weekday]['count'] += 1
             weekday_stats[weekday]['amount'] += order.get('amount', 0)
 
+        # 计算每天的目标金额和实际金额
+        daily_target = target_amount / 7
+        weekday_names = ['一', '二', '三', '四', '五', '六', '日']
+        
         # 显示结果
         result_msg = (
             f"💰 按总有效金额查找结果\n\n"
@@ -511,14 +515,23 @@ async def _handle_search_amount_input(update: Update, context: ContextTypes.DEFA
             f"选中金额: {selected_amount:,.2f}\n"
             f"差额: {target_amount - selected_amount:,.2f}\n"
             f"选中订单数: {selected_count}\n\n"
-            f"按星期分组统计:\n"
+            f"按星期分组统计（目标: {daily_target:,.2f}/天）:\n"
         )
 
-        weekday_names = ['一', '二', '三', '四', '五', '六', '日']
         for weekday in weekday_names:
             if weekday in weekday_stats:
                 stats = weekday_stats[weekday]
-                result_msg += f"周{weekday}: {stats['count']}个订单, {stats['amount']:,.2f}\n"
+                actual_amount = stats['amount']
+                diff = actual_amount - daily_target
+                diff_pct = (diff / daily_target * 100) if daily_target > 0 else 0
+                diff_sign = "+" if diff >= 0 else ""
+                result_msg += (
+                    f"周{weekday}: {stats['count']}个订单, "
+                    f"{actual_amount:,.2f} "
+                    f"({diff_sign}{diff:,.2f}, {diff_sign}{diff_pct:.1f}%)\n"
+                )
+            else:
+                result_msg += f"周{weekday}: 0个订单, 0.00 (未选择)\n"
 
         await update.message.reply_text(result_msg)
 

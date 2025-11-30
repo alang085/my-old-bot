@@ -57,6 +57,7 @@ def select_orders_by_amount(orders: List[Dict], target_amount: float) -> List[Di
 def distribute_orders_evenly_by_weekday(orders: List[Dict], target_total_amount: float) -> List[Dict]:
     """
     从周一到周日的有效订单中，均匀地选择订单，使得总金额接近目标金额
+    并且每天的订单金额尽可能均衡
     返回选中的订单列表
     """
     from constants import WEEKDAY_GROUP
@@ -77,14 +78,78 @@ def distribute_orders_evenly_by_weekday(orders: List[Dict], target_total_amount:
     # 计算每天的目标金额
     daily_target = target_total_amount / 7
     
-    selected_orders = []
-    
-    # 对每天使用贪心算法选择订单
+    # 计算每天可用的订单总金额
+    weekday_available_amounts = {}
     for weekday_name in ['一', '二', '三', '四', '五', '六', '日']:
         day_orders = weekday_orders.get(weekday_name, [])
-        if day_orders:
-            day_selected = select_orders_by_amount(day_orders, daily_target)
+        total_amount = sum(order.get('amount', 0) for order in day_orders)
+        weekday_available_amounts[weekday_name] = total_amount
+    
+    # 计算总可用金额
+    total_available = sum(weekday_available_amounts.values())
+    
+    # 如果总可用金额不足，按比例分配目标金额
+    if total_available < target_total_amount:
+        # 按每天可用金额的比例分配目标金额
+        daily_targets = {}
+        for weekday_name in ['一', '二', '三', '四', '五', '六', '日']:
+            if total_available > 0:
+                daily_targets[weekday_name] = (weekday_available_amounts[weekday_name] / total_available) * target_total_amount
+            else:
+                daily_targets[weekday_name] = 0
+    else:
+        # 如果总可用金额充足，使用均衡分配
+        # 但需要调整：如果某天订单不足，将多余的目标分配给其他天
+        daily_targets = {}
+        remaining_target = target_total_amount
+        remaining_days = []
+        
+        # 第一轮：给每天分配基础目标，但不超过可用金额
+        for weekday_name in ['一', '二', '三', '四', '五', '六', '日']:
+            available = weekday_available_amounts[weekday_name]
+            if available >= daily_target:
+                daily_targets[weekday_name] = daily_target
+                remaining_target -= daily_target
+            else:
+                # 如果可用金额不足，使用全部可用金额
+                daily_targets[weekday_name] = available
+                remaining_target -= available
+                remaining_days.append(weekday_name)
+        
+        # 第二轮：将剩余的目标金额分配给有能力的天
+        if remaining_target > 0:
+            capable_days = [
+                name for name in ['一', '二', '三', '四', '五', '六', '日']
+                if name not in remaining_days and 
+                weekday_available_amounts[name] > daily_targets[name]
+            ]
+            if capable_days:
+                # 按可用余额比例分配剩余目标
+                total_capacity = sum(
+                    weekday_available_amounts[name] - daily_targets[name]
+                    for name in capable_days
+                )
+                if total_capacity > 0:
+                    for name in capable_days:
+                        capacity = weekday_available_amounts[name] - daily_targets[name]
+                        additional = (capacity / total_capacity) * remaining_target
+                        daily_targets[name] += min(additional, capacity)
+    
+    # 对每天使用贪心算法选择订单
+    selected_orders = []
+    weekday_selected_amounts = {}
+    
+    for weekday_name in ['一', '二', '三', '四', '五', '六', '日']:
+        day_orders = weekday_orders.get(weekday_name, [])
+        if day_orders and weekday_name in daily_targets:
+            day_target = daily_targets[weekday_name]
+            day_selected = select_orders_by_amount(day_orders, day_target)
             selected_orders.extend(day_selected)
+            weekday_selected_amounts[weekday_name] = sum(
+                order.get('amount', 0) for order in day_selected
+            )
+        else:
+            weekday_selected_amounts[weekday_name] = 0.0
     
     return selected_orders
 
