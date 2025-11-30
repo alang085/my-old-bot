@@ -146,6 +146,18 @@ def update_order_group_id(conn, cursor, chat_id: int, new_group_id: str) -> bool
     return cursor.rowcount > 0
 
 
+@db_transaction
+def update_order_weekday_group(conn, cursor, chat_id: int, new_weekday_group: str) -> bool:
+    """更新订单星期分组"""
+    cursor.execute('''
+    UPDATE orders 
+    SET weekday_group = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE chat_id = ?
+    ''', (new_weekday_group, chat_id))
+    # 注意：commit由@db_transaction装饰器自动处理
+    return cursor.rowcount > 0
+
+
 def delete_order_by_chat_id(chat_id: int) -> bool:
     """删除订单（标记为完成或违约完成时使用）"""
     return True
