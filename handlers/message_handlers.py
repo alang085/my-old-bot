@@ -439,8 +439,13 @@ async def _handle_report_search(update: Update, context: ContextTypes.DEFAULT_TY
             await update.message.reply_text("❌ 无法识别查询条件\n\n示例：\n• S01\n• 三 正常\n• S01 正常")
             return
 
-        # 执行查找（报表查找包含所有状态的订单）
-        orders = await db_operations.search_orders_advanced_all_states(criteria)
+        # 执行查找：如果用户指定了状态，查找所有状态的订单；否则默认只查找有效订单
+        if 'state' in criteria and criteria['state']:
+            # 用户指定了状态，可以查找所有状态（包括完成、违约完成等）
+            orders = await db_operations.search_orders_advanced_all_states(criteria)
+        else:
+            # 用户未指定状态，默认只查找有效订单（normal和overdue）
+            orders = await db_operations.search_orders_advanced(criteria)
 
         if not orders:
             await update.message.reply_text("❌ 未找到匹配的订单")
