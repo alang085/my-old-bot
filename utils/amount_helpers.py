@@ -25,8 +25,125 @@ def parse_amount(text: str) -> Optional[float]:
 
 def select_orders_by_amount(orders: List[Dict], target_amount: float) -> List[Dict]:
     """
-    使用贪心算法从订单列表中选择订单，使得总金额尽可能接近目标金额
+    使用均衡算法从订单列表中选择订单，使得总金额尽可能接近目标金额
+    并且订单金额分布均衡（避免全部选择大额或小额订单）
     返回选中的订单列表
+    """
+    if not orders or target_amount <= 0:
+        return []
+    
+    # 过滤掉金额为0或负数的订单
+    valid_orders = [o for o in orders if o.get('amount', 0) > 0]
+    if not valid_orders:
+        return []
+    
+    # 计算订单金额范围
+    amounts = [o.get('amount', 0) for o in valid_orders]
+    min_amount = min(amounts)
+    max_amount = max(amounts)
+    
+    # 如果金额范围很小，使用简单贪心算法
+    if max_amount - min_amount < 1000:
+        return _greedy_select(valid_orders, target_amount)
+    
+    # 将订单按金额分组（4个区间：小、中小、中大、大）
+    # 区间划分：基于实际金额分布
+    amount_ranges = [
+        (min_amount, min_amount + (max_amount - min_amount) * 0.25),  # 0-25%
+        (min_amount + (max_amount - min_amount) * 0.25, min_amount + (max_amount - min_amount) * 0.5),  # 25-50%
+        (min_amount + (max_amount - min_amount) * 0.5, min_amount + (max_amount - min_amount) * 0.75),  # 50-75%
+        (min_amount + (max_amount - min_amount) * 0.75, max_amount + 1)  # 75-100%
+    ]
+    
+    # 按金额区间分组订单
+    range_orders = [[] for _ in range(4)]
+    for order in valid_orders:
+        amount = order.get('amount', 0)
+        for i, (low, high) in enumerate(amount_ranges):
+            if low <= amount < high:
+                range_orders[i].append(order)
+                break
+    
+    # 计算每个区间应该分配的目标金额（按订单数量比例）
+    total_orders = len(valid_orders)
+    range_targets = []
+    for i, range_order_list in enumerate(range_orders):
+        if total_orders > 0:
+            # 按订单数量比例分配，但至少给每个区间分配一些
+            ratio = len(range_order_list) / total_orders
+            range_target = target_amount * ratio
+            # 确保每个区间至少有一些目标（如果该区间有订单）
+            if range_order_list and range_target < target_amount * 0.1:
+                range_target = target_amount * 0.1
+            range_targets.append(range_target)
+        else:
+            range_targets.append(0)
+    
+    # 从每个区间均衡选择订单
+    selected = []
+    current_total = 0.0
+    
+    # 使用轮询方式从各个区间选择订单，确保均衡
+    max_iterations = 1000  # 防止无限循环
+    iteration = 0
+    range_indices = [0] * 4  # 每个区间的当前索引
+    
+    # 按金额排序每个区间的订单
+    sorted_range_orders = []
+    for range_order_list in range_orders:
+        sorted_range_orders.append(
+            sorted(range_order_list, key=lambda x: x.get('amount', 0), reverse=True)
+        )
+    
+    while current_total < target_amount and iteration < max_iterations:
+        iteration += 1
+        added_any = False
+        
+        # 轮询每个区间
+        for i in range(4):
+            if range_indices[i] >= len(sorted_range_orders[i]):
+                continue
+            
+            order = sorted_range_orders[i][range_indices[i]]
+            order_amount = order.get('amount', 0)
+            
+            # 检查是否可以添加
+            if current_total + order_amount <= target_amount:
+                selected.append(order)
+                current_total += order_amount
+                range_indices[i] += 1
+                added_any = True
+            elif current_total < target_amount:
+                # 如果加上这个订单会超过，但差额小于10%，仍然选择
+                if current_total + order_amount - target_amount < target_amount * 0.1:
+                    selected.append(order)
+                    current_total += order_amount
+                    range_indices[i] += 1
+                    return selected  # 达到目标，返回
+                else:
+                    # 跳过这个订单，尝试下一个区间
+                    range_indices[i] += 1
+        
+        # 如果没有任何区间可以添加订单，退出
+        if not added_any:
+            break
+    
+    # 如果还没有达到目标，使用贪心算法补充
+    if current_total < target_amount * 0.9:  # 如果还差10%以上
+        remaining_orders = []
+        for i, range_order_list in enumerate(sorted_range_orders):
+            remaining_orders.extend(range_order_list[range_indices[i]:])
+        
+        # 从剩余订单中贪心选择
+        remaining_selected = _greedy_select(remaining_orders, target_amount - current_total)
+        selected.extend(remaining_selected)
+    
+    return selected
+
+
+def _greedy_select(orders: List[Dict], target_amount: float) -> List[Dict]:
+    """
+    简单的贪心算法选择订单（用于补充或简单情况）
     """
     if not orders or target_amount <= 0:
         return []
@@ -40,16 +157,16 @@ def select_orders_by_amount(orders: List[Dict], target_amount: float) -> List[Di
     for order in sorted_orders:
         order_amount = order.get('amount', 0)
         if order_amount <= 0:
-            continue  # 跳过金额为0或负数的订单
+            continue
         
         if current_total + order_amount <= target_amount:
             selected.append(order)
             current_total += order_amount
         elif current_total < target_amount and current_total + order_amount - target_amount < target_amount * 0.1:
-            # 如果超过目标金额但差额小于10%，仍然选择（允许小幅超过）
+            # 如果超过目标金额但差额小于10%，仍然选择
             selected.append(order)
             current_total += order_amount
-            break  # 达到目标后停止
+            break
     
     return selected
 
