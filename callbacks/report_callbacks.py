@@ -337,18 +337,15 @@ async def handle_report_callback(update: Update, context: ContextTypes.DEFAULT_T
                     "📅 月报", callback_data=f"report_view_month_{group_id if group_id else 'ALL'}"),
                 InlineKeyboardButton(
                     "📆 日期查询", callback_data=f"report_view_query_{group_id if group_id else 'ALL'}")
-            ]
-        ]
-        
-        # 如果用户没有权限限制，显示开销按钮
-        if not user_group_id:
-            keyboard.append([
+            ],
+            [
                 InlineKeyboardButton(
                     "🏢 公司开销", callback_data="report_record_company"),
                 InlineKeyboardButton(
                     "📝 其他开销", callback_data="report_record_other")
-            ])
-        
+            ]
+        ]
+
         # 全局视图添加通用按钮（但用户有权限限制时不显示）
         if not group_id and not user_group_id:
             keyboard.append([
@@ -369,7 +366,7 @@ async def handle_report_callback(update: Update, context: ContextTypes.DEFAULT_T
         # 如果用户有权限限制，确保使用用户的归属ID
         if user_group_id:
             group_id = user_group_id
-            
+
         tz = pytz.timezone('Asia/Shanghai')
         now = datetime.now(tz)
         start_date = now.replace(day=1).strftime("%Y-%m-%d")
@@ -385,6 +382,12 @@ async def handle_report_callback(update: Update, context: ContextTypes.DEFAULT_T
                     "📄 今日报表", callback_data=f"report_view_today_{group_id if group_id else 'ALL'}"),
                 InlineKeyboardButton(
                     "📆 日期查询", callback_data=f"report_view_query_{group_id if group_id else 'ALL'}")
+            ],
+            [
+                InlineKeyboardButton(
+                    "🏢 公司开销", callback_data="report_record_company"),
+                InlineKeyboardButton(
+                    "📝 其他开销", callback_data="report_record_other")
             ]
         ]
         await query.edit_message_text(report_text, reply_markup=InlineKeyboardMarkup(keyboard))

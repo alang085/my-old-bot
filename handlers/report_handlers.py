@@ -70,7 +70,7 @@ async def generate_report_text(period_type: str, start_date: str, end_date: str,
         f"违约完成订单数: {stats['breach_end_orders']}\n"
         f"违约完成金额: {stats['breach_end_amount']:.2f}\n"
     )
-    
+
     # 如果要求显示开销与余额，则添加
     if show_expenses:
         report += (
@@ -80,7 +80,7 @@ async def generate_report_text(period_type: str, start_date: str, end_date: str,
             f"其他开销: {stats['other_expenses']:.2f}\n"
             f"现金余额: {current_data['liquid_funds']:.2f}\n"
         )
-    
+
     return report
 
 
@@ -160,13 +160,19 @@ async def show_my_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 生成报表（不显示开销与余额）
     report_text = await generate_report_text(period_type, daily_date, daily_date, group_id, show_expenses=False)
 
-    # 构建按钮（简化版，不显示归属查询和查找功能）
+    # 构建按钮（简化版，不显示归属查询和查找功能，但显示开销按钮）
     keyboard = [
         [
             InlineKeyboardButton(
                 "📅 月报", callback_data=f"report_view_month_{group_id}"),
             InlineKeyboardButton(
                 "📆 日期查询", callback_data=f"report_view_query_{group_id}")
+        ],
+        [
+            InlineKeyboardButton(
+                "🏢 公司开销", callback_data="report_record_company"),
+            InlineKeyboardButton(
+                "📝 其他开销", callback_data="report_record_other")
         ]
     ]
 
