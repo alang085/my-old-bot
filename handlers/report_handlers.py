@@ -26,6 +26,16 @@ async def generate_report_text(period_type: str, start_date: str, end_date: str,
     stats = await db_operations.get_stats_by_date_range(
         start_date, end_date, group_id)
 
+    # 如果按归属ID查询，需要单独获取全局开销数据（开销是全局的，不按归属ID存储）
+    if group_id:
+        global_expense_stats = await db_operations.get_stats_by_date_range(
+            start_date, end_date, None)
+        stats['company_expenses'] = global_expense_stats['company_expenses']
+        stats['other_expenses'] = global_expense_stats['other_expenses']
+        # 现金余额使用全局数据
+        global_financial_data = await db_operations.get_financial_data()
+        current_data['liquid_funds'] = global_financial_data['liquid_funds']
+
     # 格式化时间
     tz = pytz.timezone('Asia/Shanghai')
     now = datetime.now(tz).strftime("%Y-%m-%d %H:%M")
