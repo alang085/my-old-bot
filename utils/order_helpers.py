@@ -15,7 +15,12 @@ logger = logging.getLogger(__name__)
 
 def get_state_from_title(title: str) -> str:
     """从群名识别订单状态"""
-    if '❌' in title:
+    # 注意：需要先检查组合符号，再检查单个符号
+    if '❌⭕️' in title:
+        return 'breach_end'
+    elif '⭕️' in title:
+        return 'end'
+    elif '❌' in title:
         return 'breach'
     elif '❗️' in title:
         return 'overdue'
@@ -136,17 +141,35 @@ async def update_order_state_from_title(update: Update, context: ContextTypes.DE
         # Normal/Overdue -> Breach: 移动统计 (Valid -> Breach)
         # Breach -> Normal/Overdue: 禁止反向变更（违约只能到违约完成）
         # Normal <-> Overdue: 仅更新状态 (都在 Valid 统计下)
+        # Normal/Overdue -> End: 移动统计 (Valid -> Completed)
+        # Breach -> Breach_End: 移动统计 (Breach -> Breach_End)
 
         is_current_valid = current_state in ['normal', 'overdue']
         is_target_valid = target_state in ['normal', 'overdue']
 
         is_current_breach = current_state == 'breach'
         is_target_breach = target_state == 'breach'
+        
+        is_target_end = target_state == 'end'
+        is_target_breach_end = target_state == 'breach_end'
 
         # 禁止违约状态反向变更为正常/逾期
         if is_current_breach and is_target_valid:
             logger.info(f"订单 {order_id} 当前状态为违约，禁止反向变更为 {target_state}")
             return
+
+        # 检查完成状态的转换规则
+        if is_target_end:
+            # 只能从 normal 或 overdue 转换到 end
+            if not is_current_valid:
+                logger.info(f"订单 {order_id} 当前状态为 {current_state}，不能直接变更为 end（只能从 normal/overdue 转换）")
+                return
+        
+        if is_target_breach_end:
+            # 只能从 breach 转换到 breach_end
+            if not is_current_breach:
+                logger.info(f"订单 {order_id} 当前状态为 {current_state}，不能直接变更为 breach_end（只能从 breach 转换）")
+                return
 
         # 更新数据库状态
         if await db_operations.update_order_state(chat_id, target_state):
@@ -157,6 +180,24 @@ async def update_order_state_from_title(update: Update, context: ContextTypes.DE
                 await update_all_stats('valid', -amount, -1, group_id)
                 await update_all_stats('breach', amount, 1, group_id)
                 await reply_in_group(update, f"🔄 State Changed: {target_state} (Auto)\nStats moved to Breach.")
+
+            elif is_current_valid and is_target_end:
+                # Valid -> End (完成订单)
+                await update_all_stats('valid', -amount, -1, group_id)
+                await update_all_stats('completed', amount, 1, group_id)
+                # 完成订单需要增加流动资金
+                from utils.stats_helpers import update_liquid_capital
+                await update_liquid_capital(amount)
+                await reply_in_group(update, f"✅ Order Completed: {target_state} (Auto)\nStats moved to Completed.")
+
+            elif is_current_breach and is_target_breach_end:
+                # Breach -> Breach_End (违约完成)
+                await update_all_stats('breach', -amount, -1, group_id)
+                await update_all_stats('breach_end', amount, 1, group_id)
+                # 违约完成订单需要增加流动资金（使用订单金额）
+                from utils.stats_helpers import update_liquid_capital
+                await update_liquid_capital(amount)
+                await reply_in_group(update, f"✅ Breach Completed: {target_state} (Auto)\nStats moved to Breach_End.")
 
             else:
                 # Normal <-> Overdue (都在 Valid 池中，仅状态变更)
