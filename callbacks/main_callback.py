@@ -18,15 +18,23 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 获取用户ID
     user_id = update.effective_user.id if update.effective_user else None
 
-    # 对于报表回调，允许受限用户使用（只要他们有 user_group_id）
-    if data.startswith("report_"):
-        # 报表回调允许受限用户使用，权限检查在 handle_report_callback 内部进行
-        # 注意：query.answer() 在 handle_report_callback 内部调用，这里不需要调用
-        logger.info(f"button_callback: routing report callback {data} to handle_report_callback")
+    # 对于报表回调和收入明细回调，允许受限用户使用（只要他们有 user_group_id）
+    # 权限检查在各自的回调处理器内部进行
+    if data.startswith("report_") or data.startswith("income_"):
+        if data.startswith("report_"):
+            callback_name = "handle_report_callback"
+            handler = handle_report_callback
+        else:
+            # 收入明细回调已集成在 report_callbacks 中，路由到报表回调处理器
+            callback_name = "handle_report_callback (income)"
+            handler = handle_report_callback
+        
+        logger.info(f"button_callback: routing {data} to {callback_name}")
         try:
-            await handle_report_callback(update, context)
+            await handler(update, context)
         except Exception as e:
-            logger.error(f"button_callback: error in handle_report_callback: {e}", exc_info=True)
+            logger.error(
+                f"button_callback: error in {callback_name}: {e}", exc_info=True)
             try:
                 await query.answer("❌ 处理回调时出错", show_alert=True)
             except Exception:

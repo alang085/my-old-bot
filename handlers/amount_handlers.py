@@ -14,6 +14,7 @@ from telegram.ext import ContextTypes
 import db_operations
 from utils.chat_helpers import is_group_chat
 from utils.stats_helpers import update_all_stats, update_liquid_capital
+from utils.date_helpers import get_daily_period_date
 from config import ADMIN_IDS
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,19 @@ async def handle_amount_operation(update: Update, context: ContextTypes.DEFAULT_
                     # 如果没有订单，更新全局和日结数据
                     await update_all_stats('interest', amount, 0, None)
                     await update_liquid_capital(amount)
+                    # 记录收入明细
+                    await db_operations.record_income(
+                        date=get_daily_period_date(),
+                        type='interest',
+                        amount=amount,
+                        group_id=None,
+                        order_id=None,
+                        order_date=None,
+                        customer=None,
+                        weekday_group=None,
+                        note="利息收入（无关联订单）",
+                        created_by=user_id
+                    )
                     # 群组只回复成功，私聊显示详情
                     if is_group_chat(update):
                         await update.message.reply_text("✅ Success")
@@ -141,6 +155,21 @@ async def process_principal_reduction(update: Update, order: dict, amount: float
         # 3. 流动资金增加
         await update_liquid_capital(amount)
 
+        # 记录收入明细
+        user_id = update.effective_user.id if update.effective_user else None
+        await db_operations.record_income(
+            date=get_daily_period_date(),
+            type='principal_reduction',
+            amount=amount,
+            group_id=group_id,
+            order_id=order['order_id'],
+            order_date=order['date'],
+            customer=order['customer'],
+            weekday_group=order['weekday_group'],
+            note=f"本金减少 {amount:.2f}，剩余 {new_amount:.2f}",
+            created_by=user_id
+        )
+
         # 群组只回复成功，私聊显示详情
         if is_group_chat(update):
             await update.message.reply_text(f"✅ Principal Reduced: {amount:.2f}\nRemaining: {new_amount:.2f}")
@@ -172,6 +201,21 @@ async def process_interest(update: Update, order: dict, amount: float):
 
         # 2. 流动资金增加
         await update_liquid_capital(amount)
+
+        # 记录收入明细
+        user_id = update.effective_user.id if update.effective_user else None
+        await db_operations.record_income(
+            date=get_daily_period_date(),
+            type='interest',
+            amount=amount,
+            group_id=group_id,
+            order_id=order['order_id'],
+            order_date=order['date'],
+            customer=order['customer'],
+            weekday_group=order['weekday_group'],
+            note="利息收入",
+            created_by=user_id
+        )
 
         # 群组只回复成功，私聊显示详情
         if is_group_chat(update):

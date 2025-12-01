@@ -63,16 +63,15 @@ if project_root_str not in sys.path:
 
 # 现在可以安全地导入所有模块
 
-# 调试信息（部署时可以看到）
-try:
-    print(f"[DEBUG] Project root: {project_root_str}")
-    print(f"[DEBUG] Current working directory: {os.getcwd()}")
-    print(
-        f"[DEBUG] Python path includes project root: {project_root_str in sys.path}")
-    print(
-        f"[DEBUG] Handlers directory exists: {Path(project_root / 'handlers' / '__init__.py').exists()}")
-except Exception as e:
-    print(f"[DEBUG] Error in debug output: {e}")
+# 调试信息（仅在开发环境显示）
+if os.getenv('DEBUG', '0') == '1':
+    try:
+        print(f"[DEBUG] Project root: {project_root_str}")
+        print(f"[DEBUG] Current working directory: {os.getcwd()}")
+        print(f"[DEBUG] Python path includes project root: {project_root_str in sys.path}")
+        print(f"[DEBUG] Handlers directory exists: {Path(project_root / 'handlers' / '__init__.py').exists()}")
+    except Exception as e:
+        print(f"[DEBUG] Error in debug output: {e}")
 
 
 # 配置日志
@@ -146,14 +145,14 @@ def main() -> None:
         print("Checking database...")
     try:
         init_db.init_database()
-        
+
         # 运行数据库迁移（创建缺失的表）
         try:
             from migrate_expense_records import migrate_expense_records
             migrate_expense_records()
         except Exception as e:
             logger.warning(f"数据库迁移失败（可能表已存在）: {e}")
-        
+
         try:
             print("数据库已就绪")
         except UnicodeEncodeError:

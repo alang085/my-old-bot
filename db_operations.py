@@ -933,3 +933,128 @@ def toggle_scheduled_broadcast(conn, cursor, slot: int, is_active: int) -> bool:
     WHERE slot = ?
     ''', (is_active, slot))
     return cursor.rowcount > 0
+
+# ========== 收入明细操作 ==========
+
+
+@db_transaction
+def record_income(conn, cursor, date: str, type: str, amount: float,
+                  group_id: Optional[str] = None, order_id: Optional[str] = None,
+                  order_date: Optional[str] = None, customer: Optional[str] = None,
+                  weekday_group: Optional[str] = None, note: Optional[str] = None,
+                  created_by: Optional[int] = None) -> bool:
+    """记录收入明细"""
+    cursor.execute('''
+    INSERT INTO income_records (
+        date, type, amount, group_id, order_id, order_date,
+        customer, weekday_group, note, created_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (date, type, amount, group_id, order_id, order_date, customer, weekday_group, note, created_by))
+    return True
+
+
+@db_query
+def get_income_records(conn, cursor, start_date: str, end_date: str = None,
+                       type: Optional[str] = None, customer: Optional[str] = None,
+                       group_id: Optional[str] = None) -> List[Dict]:
+    """获取收入明细（支持多维度过滤）"""
+    query = "SELECT * FROM income_records WHERE date >= ?"
+    params = [start_date]
+
+    if end_date:
+        query += " AND date <= ?"
+        params.append(end_date)
+    else:
+        query += " AND date <= ?"
+        params.append(start_date)
+
+    if type:
+        query += " AND type = ?"
+        params.append(type)
+
+    if customer:
+        query += " AND customer = ?"
+        params.append(customer)
+
+    if group_id:
+        query += " AND group_id = ?"
+        params.append(group_id)
+
+    query += " ORDER BY date DESC, created_at DESC"
+
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    return [dict(row) for row in rows]
+
+
+@db_query
+def get_income_summary_by_type(conn, cursor, start_date: str, end_date: str = None,
+                                group_id: Optional[str] = None) -> Dict:
+    """按收入类型和客户类型汇总"""
+    query = """
+    SELECT 
+        type,
+        customer,
+        COUNT(*) as count,
+        SUM(amount) as total_amount
+    FROM income_records 
+    WHERE date >= ? AND date <= ?
+    """
+    params = [start_date, end_date or start_date]
+
+    if group_id:
+        query += " AND group_id = ?"
+        params.append(group_id)
+
+    query += " GROUP BY type, customer ORDER BY type, customer"
+
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+
+    # 构建汇总字典
+    summary = {}
+    for row in rows:
+        type_name = row[0]
+        customer_type = row[1] or 'None'
+        count = row[2]
+        total = row[3]
+
+        if type_name not in summary:
+            summary[type_name] = {}
+        summary[type_name][customer_type] = {
+            'count': count,
+            'total': total
+        }
+
+    return summary
+
+
+@db_query
+def get_income_summary_by_group(conn, cursor, start_date: str, end_date: str = None) -> Dict:
+    """按归属ID汇总收入"""
+    query = """
+    SELECT 
+        group_id,
+        COUNT(*) as count,
+        SUM(amount) as total_amount
+    FROM income_records 
+    WHERE date >= ? AND date <= ?
+    GROUP BY group_id
+    ORDER BY total_amount DESC
+    """
+    params = [start_date, end_date or start_date]
+
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+
+    summary = {}
+    for row in rows:
+        group_id = row[0] or 'NULL'
+        count = row[1]
+        total = row[2]
+        summary[group_id] = {
+            'count': count,
+            'total': total
+        }
+
+    return summary

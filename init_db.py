@@ -261,6 +261,51 @@ def init_database():
     )
     ''')
 
+    # 创建收入明细表
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS income_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL,
+        type TEXT NOT NULL,
+        amount REAL NOT NULL,
+        group_id TEXT,
+        order_id TEXT,
+        order_date TEXT,
+        customer TEXT,
+        weekday_group TEXT,
+        note TEXT,
+        created_by INTEGER,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+
+    # 创建索引以优化查询性能
+    try:
+        cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_income_date ON income_records(date)
+        ''')
+        cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_income_type ON income_records(type)
+        ''')
+        cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_income_customer ON income_records(customer)
+        ''')
+        cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_income_group ON income_records(group_id)
+        ''')
+        cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_income_order ON income_records(order_id)
+        ''')
+        cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_income_date_type ON income_records(date, type)
+        ''')
+        cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_income_group_type ON income_records(group_id, type)
+        ''')
+    except sqlite3.OperationalError as e:
+        # 索引可能已存在，忽略错误
+        pass
+
     conn.commit()
     conn.close()
     print(f"数据库 {DB_NAME} 初始化完成！")

@@ -146,6 +146,11 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _handle_report_search(update, context, text)
         return
 
+    if user_state == 'QUERY_INCOME':
+        from handlers.income_handlers import handle_income_query_input
+        await handle_income_query_input(update, context, text)
+        return
+
     if user_state == 'BROADCASTING':
         await _handle_broadcast(update, context, text)
         return
@@ -222,6 +227,22 @@ async def _handle_breach_end_amount(update: Update, context: ContextTypes.DEFAUL
 
         # 更新流动资金
         await update_liquid_capital(amount)
+
+        # 记录收入明细
+        from utils.date_helpers import get_daily_period_date
+        user_id = update.effective_user.id if update.effective_user else None
+        await db_operations.record_income(
+            date=get_daily_period_date(),
+            type='breach_end',
+            amount=amount,
+            group_id=group_id,
+            order_id=order['order_id'],
+            order_date=order['date'],
+            customer=order['customer'],
+            weekday_group=order['weekday_group'],
+            note="违约完成",
+            created_by=user_id
+        )
 
         msg_en = f"✅ Breach Order Ended\nAmount: {amount:.2f}"
 

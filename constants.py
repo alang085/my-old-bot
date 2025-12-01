@@ -32,6 +32,22 @@ DAILY_ALLOWED_PREFIXES = [
     'interest', 'completed', 'breach', 'breach_end'
 ]
 
+# 收入类型
+INCOME_TYPES = {
+    'completed': '订单完成',
+    'breach_end': '违约完成',
+    'interest': '利息收入',
+    'principal_reduction': '本金减少',
+    'adjustment': '资金调整'
+}
+
+# 客户类型
+CUSTOMER_TYPES = {
+    'A': '新客户',
+    'B': '老客户',
+    None: '无关联'
+}
+
 # 用户状态
 USER_STATES = {
     'WAITING_BREACH_END_AMOUNT': '等待违约完成金额',
@@ -52,5 +68,6 @@ USER_STATES = {
     'ADDING_ACCOUNT_PAYMAYA': '添加PayMaya账户',
     'EDITING_ACCOUNT_BY_ID_GCASH': '编辑GCASH账户（按ID）',
     'EDITING_ACCOUNT_BY_ID_PAYMAYA': '编辑PayMaya账户（按ID）',
-    'SEARCHING_AMOUNT': '搜索中（按金额）'
+    'SEARCHING_AMOUNT': '搜索中（按金额）',
+    'QUERY_INCOME': '查询收入明细'
 }

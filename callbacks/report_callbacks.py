@@ -27,12 +27,12 @@ async def handle_report_callback(update: Update, context: ContextTypes.DEFAULT_T
     if not query:
         logger.error("handle_report_callback: query is None")
         return
-    
+
     data = query.data
     if not data:
         logger.error("handle_report_callback: data is None")
         return
-    
+
     logger.info(f"handle_report_callback: processing callback data={data}")
 
     # 获取用户ID
@@ -42,7 +42,8 @@ async def handle_report_callback(update: Update, context: ContextTypes.DEFAULT_T
         try:
             await query.answer("❌ 无法获取用户信息", show_alert=True)
         except Exception as e:
-            logger.error(f"handle_report_callback: failed to answer query: {e}")
+            logger.error(
+                f"handle_report_callback: failed to answer query: {e}")
         return
 
     # 检查用户是否有权限查看特定归属ID的报表
@@ -64,17 +65,20 @@ async def handle_report_callback(update: Update, context: ContextTypes.DEFAULT_T
             return
 
     if data == "report_record_company":
-        logger.info(f"handle_report_callback: processing report_record_company for user {user_id}")
+        logger.info(
+            f"handle_report_callback: processing report_record_company for user {user_id}")
         try:
             await query.answer()
         except Exception as e:
-            logger.warning(f"handle_report_callback: query.answer() failed: {e}")
-        
+            logger.warning(
+                f"handle_report_callback: query.answer() failed: {e}")
+
         try:
             date = get_daily_period_date()
             records = await db_operations.get_expense_records(date, date, 'company')
         except Exception as e:
-            logger.error(f"handle_report_callback: failed to get expense records: {e}", exc_info=True)
+            logger.error(
+                f"handle_report_callback: failed to get expense records: {e}", exc_info=True)
             try:
                 await query.answer("❌ 获取开销记录失败", show_alert=True)
             except Exception:
@@ -110,12 +114,14 @@ async def handle_report_callback(update: Update, context: ContextTypes.DEFAULT_T
         ])
         try:
             await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
-            logger.info(f"handle_report_callback: successfully edited message for report_record_company")
+            logger.info(
+                f"handle_report_callback: successfully edited message for report_record_company")
         except Exception as e:
             logger.error(f"编辑公司开销消息失败: {e}", exc_info=True)
             try:
                 await query.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
-                logger.info(f"handle_report_callback: successfully sent new message for report_record_company")
+                logger.info(
+                    f"handle_report_callback: successfully sent new message for report_record_company")
             except Exception as e2:
                 logger.error(f"发送公司开销消息失败: {e2}", exc_info=True)
                 try:
@@ -195,17 +201,20 @@ async def handle_report_callback(update: Update, context: ContextTypes.DEFAULT_T
         return
 
     if data == "report_record_other":
-        logger.info(f"handle_report_callback: processing report_record_other for user {user_id}")
+        logger.info(
+            f"handle_report_callback: processing report_record_other for user {user_id}")
         try:
             await query.answer()
         except Exception as e:
-            logger.warning(f"handle_report_callback: query.answer() failed: {e}")
-        
+            logger.warning(
+                f"handle_report_callback: query.answer() failed: {e}")
+
         try:
             date = get_daily_period_date()
             records = await db_operations.get_expense_records(date, date, 'other')
         except Exception as e:
-            logger.error(f"handle_report_callback: failed to get expense records: {e}", exc_info=True)
+            logger.error(
+                f"handle_report_callback: failed to get expense records: {e}", exc_info=True)
             try:
                 await query.answer("❌ 获取开销记录失败", show_alert=True)
             except Exception:
@@ -241,12 +250,14 @@ async def handle_report_callback(update: Update, context: ContextTypes.DEFAULT_T
         ])
         try:
             await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
-            logger.info(f"handle_report_callback: successfully edited message for report_record_other")
+            logger.info(
+                f"handle_report_callback: successfully edited message for report_record_other")
         except Exception as e:
             logger.error(f"编辑其他开销消息失败: {e}", exc_info=True)
             try:
                 await query.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
-                logger.info(f"handle_report_callback: successfully sent new message for report_record_other")
+                logger.info(
+                    f"handle_report_callback: successfully sent new message for report_record_other")
             except Exception as e2:
                 logger.error(f"发送其他开销消息失败: {e2}", exc_info=True)
                 try:
@@ -362,6 +373,130 @@ async def handle_report_callback(update: Update, context: ContextTypes.DEFAULT_T
             "请输入:（输入 'cancel' 取消）"
         )
         context.user_data['state'] = 'REPORT_SEARCHING'
+        return
+
+    # ========== 收入明细查询回调（仅管理员） ==========
+    if data == "income_view_today":
+        if not user_id or user_id not in ADMIN_IDS:
+            await query.answer("❌ 此功能仅限管理员使用", show_alert=True)
+            return
+        
+        await query.answer()
+        date = get_daily_period_date()
+        records = await db_operations.get_income_records(date, date)
+        from handlers.income_handlers import generate_income_report
+        report = await generate_income_report(records, date, date, f"今日收入明细 ({date})")
+        
+        keyboard = [
+            [
+                InlineKeyboardButton("📅 本月收入", callback_data="income_view_month"),
+                InlineKeyboardButton("📆 日期查询", callback_data="income_view_query")
+            ],
+            [
+                InlineKeyboardButton("🔍 分类查询", callback_data="income_view_by_type")
+            ],
+            [
+                InlineKeyboardButton("🔙 返回报表", callback_data="report_view_today_ALL")
+            ]
+        ]
+        
+        try:
+            await query.edit_message_text(report, reply_markup=InlineKeyboardMarkup(keyboard))
+        except Exception as e:
+            logger.error(f"编辑收入明细消息失败: {e}", exc_info=True)
+            await query.message.reply_text(report, reply_markup=InlineKeyboardMarkup(keyboard))
+        return
+
+    if data == "income_view_month":
+        if not user_id or user_id not in ADMIN_IDS:
+            await query.answer("❌ 此功能仅限管理员使用", show_alert=True)
+            return
+        
+        await query.answer()
+        tz = pytz.timezone('Asia/Shanghai')
+        now = datetime.now(tz)
+        start_date = now.replace(day=1).strftime("%Y-%m-%d")
+        end_date = get_daily_period_date()
+        
+        records = await db_operations.get_income_records(start_date, end_date)
+        from handlers.income_handlers import generate_income_report
+        report = await generate_income_report(records, start_date, end_date, f"本月收入明细 ({start_date} 至 {end_date})")
+        
+        keyboard = [
+            [
+                InlineKeyboardButton("📄 今日收入", callback_data="income_view_today"),
+                InlineKeyboardButton("📆 日期查询", callback_data="income_view_query")
+            ],
+            [InlineKeyboardButton("🔙 返回报表", callback_data="report_view_today_ALL")]
+        ]
+        
+        try:
+            await query.edit_message_text(report, reply_markup=InlineKeyboardMarkup(keyboard))
+        except Exception as e:
+            logger.error(f"编辑收入明细消息失败: {e}", exc_info=True)
+            await query.message.reply_text(report, reply_markup=InlineKeyboardMarkup(keyboard))
+        return
+
+    if data == "income_view_query":
+        if not user_id or user_id not in ADMIN_IDS:
+            await query.answer("❌ 此功能仅限管理员使用", show_alert=True)
+            return
+        
+        await query.answer()
+        await query.message.reply_text(
+            "📆 请输入查询日期范围：\n"
+            "格式1 (单日): 2024-01-01\n"
+            "格式2 (范围): 2024-01-01 2024-01-31\n"
+            "输入 'cancel' 取消"
+        )
+        context.user_data['state'] = 'QUERY_INCOME'
+        return
+
+    if data == "income_view_by_type":
+        if not user_id or user_id not in ADMIN_IDS:
+            await query.answer("❌ 此功能仅限管理员使用", show_alert=True)
+            return
+        
+        await query.answer()
+        keyboard = [
+            [
+                InlineKeyboardButton("订单完成", callback_data="income_type_completed"),
+                InlineKeyboardButton("违约完成", callback_data="income_type_breach_end")
+            ],
+            [
+                InlineKeyboardButton("利息收入", callback_data="income_type_interest"),
+                InlineKeyboardButton("本金减少", callback_data="income_type_principal_reduction")
+            ],
+            [InlineKeyboardButton("🔙 返回", callback_data="income_view_today")]
+        ]
+        
+        await query.edit_message_text(
+            "🔍 请选择要查询的收入类型：",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return
+
+    if data.startswith("income_type_"):
+        if not user_id or user_id not in ADMIN_IDS:
+            await query.answer("❌ 此功能仅限管理员使用", show_alert=True)
+            return
+        
+        await query.answer()
+        income_type = data.replace("income_type_", "")
+        date = get_daily_period_date()
+        records = await db_operations.get_income_records(date, date, type=income_type)
+        
+        from handlers.income_handlers import generate_income_report
+        type_name = {"completed": "订单完成", "breach_end": "违约完成", 
+                     "interest": "利息收入", "principal_reduction": "本金减少"}.get(income_type, income_type)
+        report = await generate_income_report(records, date, date, f"今日{type_name}收入 ({date})")
+        
+        keyboard = [[InlineKeyboardButton("🔙 返回", callback_data="income_view_today")]]
+        try:
+            await query.edit_message_text(report, reply_markup=InlineKeyboardMarkup(keyboard))
+        except Exception as e:
+            logger.error(f"编辑收入明细消息失败: {e}", exc_info=True)
+            await query.message.reply_text(report, reply_markup=InlineKeyboardMarkup(keyboard))
         return
 
     if data == "report_change_attribution":
@@ -485,6 +620,12 @@ async def handle_report_callback(update: Update, context: ContextTypes.DEFAULT_T
                 InlineKeyboardButton(
                     "🔎 查找订单", callback_data="report_search_orders")
             ])
+            # 仅管理员显示收入明细按钮
+            if user_id and user_id in ADMIN_IDS:
+                keyboard.append([
+                    InlineKeyboardButton(
+                        "💰 收入明细", callback_data="income_view_today")
+                ])
         elif group_id:
             # 如果用户有权限限制，不显示返回按钮（因为不能返回全局视图）
             if not user_group_id:

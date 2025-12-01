@@ -5,6 +5,7 @@ from telegram.ext import ContextTypes
 import db_operations
 from utils.chat_helpers import is_group_chat
 from utils.stats_helpers import update_all_stats, update_liquid_capital
+from utils.date_helpers import get_daily_period_date
 from decorators import authorized_required, group_chat_only
 
 logger = logging.getLogger(__name__)
@@ -130,6 +131,21 @@ async def set_end(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update_all_stats('completed', amount, 1, group_id)
     await update_liquid_capital(amount)
 
+    # 记录收入明细
+    user_id = update.effective_user.id if update.effective_user else None
+    await db_operations.record_income(
+        date=get_daily_period_date(),
+        type='completed',
+        amount=amount,
+        group_id=group_id,
+        order_id=order['order_id'],
+        order_date=order['date'],
+        customer=order['customer'],
+        weekday_group=order['weekday_group'],
+        note="订单完成",
+        created_by=user_id
+    )
+
     if is_group_chat(update):
         await reply_func(f"✅ Order Completed\nAmount: {amount:.2f}")
     else:
@@ -222,6 +238,21 @@ async def set_breach_end(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             await update_all_stats('breach_end', amount, 1, group_id)
             await update_liquid_capital(amount)
+
+            # 记录收入明细
+            user_id = update.effective_user.id if update.effective_user else None
+            await db_operations.record_income(
+                date=get_daily_period_date(),
+                type='breach_end',
+                amount=amount,
+                group_id=group_id,
+                order_id=order['order_id'],
+                order_date=order['date'],
+                customer=order['customer'],
+                weekday_group=order['weekday_group'],
+                note="违约完成",
+                created_by=user_id
+            )
 
             msg_en = f"✅ Breach Order Ended\nAmount: {amount:.2f}"
 

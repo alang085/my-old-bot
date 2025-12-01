@@ -135,6 +135,12 @@ async def show_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
             InlineKeyboardButton(
                 "🔎 查找订单", callback_data="report_search_orders")
         ])
+        # 仅管理员显示收入明细按钮
+        if user_id and user_id in ADMIN_IDS:
+            keyboard.append([
+                InlineKeyboardButton(
+                    "💰 收入明细", callback_data="income_view_today")
+            ])
     else:
         keyboard.append([InlineKeyboardButton(
             "🔙 返回", callback_data="report_view_today_ALL")])
