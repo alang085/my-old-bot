@@ -72,6 +72,11 @@ async def generate_report_text(period_type: str, start_date: str, end_date: str,
         f"违约完成金额: {stats['breach_end_amount']:.2f}\n"
     )
 
+    # 如果是归属报表，添加盈余计算
+    if group_id:
+        surplus = stats['interest'] + stats['breach_end_amount'] - stats['breach_amount']
+        report += f"盈余: {surplus:.2f}\n"
+
     # 如果要求显示开销与余额，则添加
     if show_expenses:
         report += (
