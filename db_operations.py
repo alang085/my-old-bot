@@ -2,6 +2,8 @@ import sqlite3
 import os
 import asyncio
 import json
+from datetime import datetime
+import pytz
 from typing import Optional, Dict, List, Tuple, Any
 from functools import wraps
 
@@ -962,12 +964,16 @@ def record_income(conn, cursor, date: str, type: str, amount: float,
                   weekday_group: Optional[str] = None, note: Optional[str] = None,
                   created_by: Optional[int] = None) -> bool:
     """记录收入明细"""
+    # 使用北京时间作为 created_at
+    tz_beijing = pytz.timezone('Asia/Shanghai')
+    created_at = datetime.now(tz_beijing).strftime('%Y-%m-%d %H:%M:%S')
+    
     cursor.execute('''
     INSERT INTO income_records (
         date, type, amount, group_id, order_id, order_date,
-        customer, weekday_group, note, created_by
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (date, type, amount, group_id, order_id, order_date, customer, weekday_group, note, created_by))
+        customer, weekday_group, note, created_by, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (date, type, amount, group_id, order_id, order_date, customer, weekday_group, note, created_by, created_at))
     return True
 
 
