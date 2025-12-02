@@ -749,7 +749,7 @@ async def handle_report_callback(update: Update, context: ContextTypes.DEFAULT_T
 
         # 如果有分页，添加分页按钮
         if total_pages > 1:
-            page_data = f"{final_type or 'all'}_{final_group or 'all' if final_group else 'all'}_{start_date}_{end_date}"
+            page_data = f"{final_type or 'all'}|{final_group or 'all' if final_group else 'all'}|{start_date}|{end_date}"
             keyboard.append([InlineKeyboardButton(
                 "下一页 ▶️", callback_data=f"income_adv_page_{page_data}|2")])
 
@@ -832,12 +832,12 @@ async def handle_report_callback(update: Update, context: ContextTypes.DEFAULT_T
             page_buttons = []
 
             if page > 1:
-                page_data = f"{final_type or 'all'}_{final_group or 'all' if final_group else 'all'}_{start_date}_{end_date}"
+                page_data = f"{final_type or 'all'}|{final_group or 'all' if final_group else 'all'}|{start_date}|{end_date}"
                 page_buttons.append(InlineKeyboardButton(
                     "◀️ 上一页", callback_data=f"income_adv_page_{page_data}|{page - 1}"))
 
             if page < total_pages:
-                page_data = f"{final_type or 'all'}_{final_group or 'all' if final_group else 'all'}_{start_date}_{end_date}"
+                page_data = f"{final_type or 'all'}|{final_group or 'all' if final_group else 'all'}|{start_date}|{end_date}"
                 page_buttons.append(InlineKeyboardButton(
                     "下一页 ▶️", callback_data=f"income_adv_page_{page_data}|{page + 1}"))
 
