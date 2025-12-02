@@ -52,6 +52,7 @@ import os
 import sys
 import logging
 from pathlib import Path
+from utils.logging_helpers import setup_beijing_logging
 
 # 确保项目根目录在 Python 路径中（必须在所有导入之前）
 # 这样无论从哪里运行，都能找到所有模块
@@ -75,11 +76,8 @@ if os.getenv('DEBUG', '0') == '1':
         print(f"[DEBUG] Error in debug output: {e}")
 
 
-# 配置日志
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
+# 配置日志（使用北京时间）
+setup_beijing_logging(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
