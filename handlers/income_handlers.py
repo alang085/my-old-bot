@@ -137,7 +137,9 @@ async def generate_income_report(records: list, start_date: str, end_date: str,
         type_count = len(type_records)
 
         report += f"【{type_name}】总计: {type_total:,.2f} ({type_count}笔)\n"
-        report += f"{'─' * 30}\n"
+        report += f"{'─' * 50}\n"
+        report += f"{'时间':>8} | {'订单号':>25} | {'金额':>15}\n"
+        report += f"{'─' * 50}\n"
 
         # 分页处理
         if type_count > items_per_page:
