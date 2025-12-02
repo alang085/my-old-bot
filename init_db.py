@@ -284,14 +284,26 @@ def init_database():
     CREATE TABLE IF NOT EXISTS operation_history (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
-        chat_id INTEGER NOT NULL,
         operation_type TEXT NOT NULL,
         operation_data TEXT NOT NULL,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         is_undone INTEGER DEFAULT 0
     )
     ''')
-
+    
+    # 检查并添加 chat_id 字段（如果不存在）- 迁移旧表结构
+    cursor.execute("PRAGMA table_info(operation_history)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if 'chat_id' not in columns:
+        try:
+            logger.info("添加 chat_id 字段到 operation_history 表...")
+            cursor.execute('''
+            ALTER TABLE operation_history 
+            ADD COLUMN chat_id INTEGER NOT NULL DEFAULT 0
+            ''')
+        except sqlite3.OperationalError as e:
+            logger.warning(f"添加 chat_id 字段失败（可能已存在）: {e}")
+    
     # 为操作历史表创建索引
     cursor.execute('''
     CREATE INDEX IF NOT EXISTS idx_operation_user_time ON operation_history(user_id, created_at DESC)

@@ -147,12 +147,19 @@ def main() -> None:
     try:
         init_db.init_database()
 
-        # 运行数据库迁移（创建缺失的表）
+        # 运行数据库迁移（创建缺失的表和字段）
         try:
             from migrate_expense_records import migrate_expense_records
             migrate_expense_records()
         except Exception as e:
             logger.warning(f"数据库迁移失败（可能表已存在）: {e}")
+        
+        # 迁移 operation_history 表添加 chat_id 字段
+        try:
+            from migrate_add_chat_id_to_operation_history import migrate_add_chat_id
+            migrate_add_chat_id()
+        except Exception as e:
+            logger.warning(f"数据库迁移失败（chat_id字段可能已存在）: {e}")
 
         try:
             print("数据库已就绪")
