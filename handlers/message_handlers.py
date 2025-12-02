@@ -150,7 +150,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from handlers.income_handlers import handle_income_query_input
         await handle_income_query_input(update, context, text)
         return
-    
+
     if user_state == 'INCOME_QUERY_DATE':
         await _handle_income_query_date(update, context, text)
         return
@@ -160,13 +160,13 @@ async def _handle_income_query_date(update: Update, context: ContextTypes.DEFAUL
     """处理高级查询的日期输入"""
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
     from config import ADMIN_IDS
-    
+
     user_id = update.effective_user.id if update.effective_user else None
     if not user_id or user_id not in ADMIN_IDS:
         await update.message.reply_text("❌ 此功能仅限管理员使用")
         context.user_data['state'] = None
         return
-    
+
     try:
         dates = text.split()
         if len(dates) == 1:
@@ -182,33 +182,40 @@ async def _handle_income_query_date(update: Update, context: ContextTypes.DEFAUL
         else:
             await update.message.reply_text("❌ 格式错误。请使用：\n格式1 (单日): 2025-12-02\n格式2 (范围): 2025-12-01 2025-12-31")
             return
-        
+
         # 保存日期，显示类型选择界面
-        context.user_data['income_query'] = context.user_data.get('income_query', {})
+        context.user_data['income_query'] = context.user_data.get(
+            'income_query', {})
         context.user_data['income_query']['date'] = date_str
         context.user_data['state'] = None
-        
+
         keyboard = [
             [
-                InlineKeyboardButton("订单完成", callback_data=f"income_query_type_completed_{date_str}"),
-                InlineKeyboardButton("违约完成", callback_data=f"income_query_type_breach_end_{date_str}")
+                InlineKeyboardButton(
+                    "订单完成", callback_data=f"income_query_type_completed_{date_str}"),
+                InlineKeyboardButton(
+                    "违约完成", callback_data=f"income_query_type_breach_end_{date_str}")
             ],
             [
-                InlineKeyboardButton("利息收入", callback_data=f"income_query_type_interest_{date_str}"),
-                InlineKeyboardButton("本金减少", callback_data=f"income_query_type_principal_reduction_{date_str}")
+                InlineKeyboardButton(
+                    "利息收入", callback_data=f"income_query_type_interest_{date_str}"),
+                InlineKeyboardButton(
+                    "本金减少", callback_data=f"income_query_type_principal_reduction_{date_str}")
             ],
             [
-                InlineKeyboardButton("全部类型", callback_data=f"income_query_type_all_{date_str}")
+                InlineKeyboardButton(
+                    "全部类型", callback_data=f"income_query_type_all_{date_str}")
             ],
-            [InlineKeyboardButton("🔙 取消", callback_data="income_advanced_query")]
+            [InlineKeyboardButton(
+                "🔙 取消", callback_data="income_advanced_query")]
         ]
-        
+
         await update.message.reply_text(
             f"📅 已选择日期: {date_str}\n\n"
             "🔍 请选择收入类型：",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
-        
+
     except ValueError:
         await update.message.reply_text("❌ 日期格式错误。请使用 YYYY-MM-DD 格式")
     except Exception as e:
