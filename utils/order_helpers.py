@@ -336,6 +336,28 @@ async def try_create_order_from_title(update: Update, context: ContextTypes.DEFA
         is_historical=is_historical
     )
     await update.message.reply_text(msg)
+    
+    # 记录操作历史（用于撤销）
+    user_id = update.effective_user.id if update.effective_user else None
+    if user_id:
+        from handlers.undo_handlers import reset_undo_count
+        await db_operations.record_operation(
+            user_id=user_id,
+            operation_type='order_created',
+            operation_data={
+                'order_id': order_id,
+                'chat_id': chat_id,
+                'group_id': group_id,
+                'amount': amount,
+                'customer': customer,
+                'initial_state': initial_state,
+                'is_historical': is_historical,
+                'date': created_at
+            }
+        )
+        # 重置撤销计数
+        if context:
+            reset_undo_count(context, user_id)
 
 
 async def send_auto_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE, chat_id: int, amount: float, order_date: str = None):

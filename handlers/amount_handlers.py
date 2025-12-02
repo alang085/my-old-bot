@@ -16,6 +16,7 @@ from utils.chat_helpers import is_group_chat
 from utils.stats_helpers import update_all_stats, update_liquid_capital
 from utils.date_helpers import get_daily_period_date
 from config import ADMIN_IDS
+from handlers.undo_handlers import reset_undo_count
 
 logger = logging.getLogger(__name__)
 
@@ -72,14 +73,14 @@ async def handle_amount_operation(update: Update, context: ContextTypes.DEFAULT_
                 await update.message.reply_text(message)
                 return
             amount = float(amount_text[:-1])
-            await process_principal_reduction(update, order, amount)
+            await process_principal_reduction(update, order, amount, context)
         else:
             # 利息收入 - 不需要订单，但如果有订单会关联到订单的归属ID
             try:
                 amount = float(amount_text)
                 if order:
                     # 如果有订单，关联到订单的归属ID
-                    await process_interest(update, order, amount)
+                    await process_interest(update, order, amount, context)
                 else:
                     # 如果没有订单，更新全局和日结数据
                     await update_all_stats('interest', amount, 0, None)
@@ -97,6 +98,19 @@ async def handle_amount_operation(update: Update, context: ContextTypes.DEFAULT_
                         note="利息收入（无关联订单）",
                         created_by=user_id
                     )
+                    # 记录操作历史（用于撤销）
+                    await db_operations.record_operation(
+                        user_id=user_id,
+                        operation_type='interest',
+                        operation_data={
+                            'amount': amount,
+                            'group_id': None,
+                            'order_id': None,
+                            'date': get_daily_period_date()
+                        }
+                    )
+                    # 重置撤销计数
+                    reset_undo_count(context, user_id)
                     # 群组只回复成功，私聊显示详情
                     if is_group_chat(update):
                         await update.message.reply_text("✅ Success")
@@ -119,7 +133,7 @@ async def handle_amount_operation(update: Update, context: ContextTypes.DEFAULT_
         await update.message.reply_text(message)
 
 
-async def process_principal_reduction(update: Update, order: dict, amount: float):
+async def process_principal_reduction(update: Update, order: dict, amount: float, context: ContextTypes.DEFAULT_TYPE = None):
     """处理本金减少"""
     try:
         if order['state'] not in ('normal', 'overdue'):
@@ -170,6 +184,25 @@ async def process_principal_reduction(update: Update, order: dict, amount: float
             created_by=user_id
         )
 
+        # 记录操作历史（用于撤销）
+        await db_operations.record_operation(
+            user_id=user_id,
+            operation_type='principal_reduction',
+            operation_data={
+                'amount': amount,
+                'old_amount': order['amount'],
+                'new_amount': new_amount,
+                'group_id': group_id,
+                'chat_id': chat_id,
+                'order_id': order['order_id'],
+                'date': get_daily_period_date()
+            }
+        )
+
+        # 重置撤销计数
+        if context:
+            reset_undo_count(context, user_id)
+
         # 群组只回复成功，私聊显示详情
         if is_group_chat(update):
             await update.message.reply_text(f"✅ Principal Reduced: {amount:.2f}\nRemaining: {new_amount:.2f}")
@@ -186,7 +219,7 @@ async def process_principal_reduction(update: Update, order: dict, amount: float
         await update.message.reply_text(message)
 
 
-async def process_interest(update: Update, order: dict, amount: float):
+async def process_interest(update: Update, order: dict, amount: float, context: ContextTypes.DEFAULT_TYPE = None):
     """处理利息收入"""
     try:
         if amount <= 0:
@@ -216,6 +249,22 @@ async def process_interest(update: Update, order: dict, amount: float):
             note="利息收入",
             created_by=user_id
         )
+
+        # 记录操作历史（用于撤销）
+        await db_operations.record_operation(
+            user_id=user_id,
+            operation_type='interest',
+            operation_data={
+                'amount': amount,
+                'group_id': group_id,
+                'order_id': order['order_id'],
+                'date': get_daily_period_date()
+            }
+        )
+
+        # 重置撤销计数
+        if context:
+            reset_undo_count(context, user_id)
 
         # 群组只回复成功，私聊显示详情
         if is_group_chat(update):

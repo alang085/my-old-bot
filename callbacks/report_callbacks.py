@@ -625,7 +625,7 @@ async def handle_report_callback(update: Update, context: ContextTypes.DEFAULT_T
                 keyboard.append([
                     InlineKeyboardButton(
                         "💰 收入明细", callback_data="income_view_today")
-                ])
+            ])
         elif group_id:
             # 如果用户有权限限制，不显示返回按钮（因为不能返回全局视图）
             if not user_group_id:

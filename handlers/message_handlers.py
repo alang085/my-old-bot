@@ -244,6 +244,22 @@ async def _handle_breach_end_amount(update: Update, context: ContextTypes.DEFAUL
             created_by=user_id
         )
 
+        # 记录操作历史（用于撤销）
+        if user_id:
+            from handlers.undo_handlers import reset_undo_count
+            await db_operations.record_operation(
+                user_id=user_id,
+                operation_type='order_breach_end',
+                operation_data={
+                    'chat_id': chat_id,
+                    'order_id': order['order_id'],
+                    'group_id': group_id,
+                    'amount': amount,
+                    'date': get_daily_period_date()
+                }
+            )
+            reset_undo_count(context, user_id)
+
         msg_en = f"✅ Breach Order Ended\nAmount: {amount:.2f}"
 
         # 在群聊中，删除之前的提示消息
@@ -364,7 +380,23 @@ async def _handle_expense_input(update: Update, context: ContextTypes.DEFAULT_TY
         date_str = get_daily_period_date()
 
         # 记录开销
-        await db_operations.record_expense(date_str, expense_type, amount, note)
+        expense_id = await db_operations.record_expense(date_str, expense_type, amount, note)
+
+        # 记录操作历史（用于撤销）
+        from handlers.undo_handlers import reset_undo_count
+        await db_operations.record_operation(
+            user_id=user_id,
+            operation_type='expense',
+            operation_data={
+                'amount': amount,
+                'type': expense_type,
+                'note': note,
+                'date': date_str,
+                'expense_record_id': expense_id
+            }
+        )
+        # 重置撤销计数
+        reset_undo_count(context, user_id)
 
         financial_data = await db_operations.get_financial_data()
         await update.message.reply_text(

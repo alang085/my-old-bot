@@ -73,9 +73,17 @@ async def generate_report_text(period_type: str, start_date: str, end_date: str,
     )
 
     # 如果是归属报表，添加盈余计算
+    # 盈余 = 利息收入 + 违约完成订单金额 - 违约订单金额
     if group_id:
         surplus = stats['interest'] + stats['breach_end_amount'] - stats['breach_amount']
-        report += f"盈余: {surplus:.2f}\n"
+        # 格式化显示：添加千分位分隔符和符号
+        surplus_str = f"{surplus:,.2f}"
+        if surplus > 0:
+            report += f"盈余: +{surplus_str}\n"
+        elif surplus < 0:
+            report += f"盈余: {surplus_str}\n"  # 负数自带负号
+        else:
+            report += f"盈余: {surplus_str}\n"
 
     # 如果要求显示开销与余额，则添加
     if show_expenses:

@@ -67,6 +67,9 @@ from .payment_handlers import show_gcash, show_paymaya, show_all_accounts
 # 定时播报处理器
 from .schedule_handlers import show_schedule_menu, handle_schedule_input
 
+# 撤销操作处理器
+from .undo_handlers import undo_last_operation
+
 
 __all__ = [
     # 命令处理器
@@ -112,5 +115,7 @@ __all__ = [
     'show_all_accounts',
     # 定时播报处理器
     'show_schedule_menu',
-    'handle_schedule_input'
+    'handle_schedule_input',
+    # 撤销操作处理器
+    'undo_last_operation'
 ]

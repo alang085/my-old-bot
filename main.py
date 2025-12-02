@@ -42,7 +42,8 @@ from handlers import (
     show_gcash,
     show_paymaya,
     show_all_accounts,
-    show_schedule_menu
+    show_schedule_menu,
+    undo_last_operation
 )
 from callbacks import button_callback, handle_order_action_callback, handle_schedule_callback
 from utils.schedule_executor import setup_scheduled_broadcasts
@@ -65,13 +66,13 @@ if project_root_str not in sys.path:
 
 # 调试信息（仅在开发环境显示）
 if os.getenv('DEBUG', '0') == '1':
-    try:
-        print(f"[DEBUG] Project root: {project_root_str}")
-        print(f"[DEBUG] Current working directory: {os.getcwd()}")
+try:
+    print(f"[DEBUG] Project root: {project_root_str}")
+    print(f"[DEBUG] Current working directory: {os.getcwd()}")
         print(f"[DEBUG] Python path includes project root: {project_root_str in sys.path}")
         print(f"[DEBUG] Handlers directory exists: {Path(project_root / 'handlers' / '__init__.py').exists()}")
-    except Exception as e:
-        print(f"[DEBUG] Error in debug output: {e}")
+except Exception as e:
+    print(f"[DEBUG] Error in debug output: {e}")
 
 
 # 配置日志
@@ -209,6 +210,10 @@ def main() -> None:
         "order", authorized_required(group_chat_only(show_current_order))))
     application.add_handler(CommandHandler(
         "broadcast", authorized_required(group_chat_only(broadcast_payment))))
+
+    # 撤销操作命令（群组或私聊，需要授权）
+    application.add_handler(CommandHandler(
+        "undo", authorized_required(error_handler(undo_last_operation))))
 
     # 资金和归属ID管理（私聊，仅管理员）
     application.add_handler(CommandHandler(

@@ -21,7 +21,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 对于报表回调和收入明细回调，允许受限用户使用（只要他们有 user_group_id）
     # 权限检查在各自的回调处理器内部进行
     if data.startswith("report_") or data.startswith("income_"):
-        if data.startswith("report_"):
+    if data.startswith("report_"):
             callback_name = "handle_report_callback"
             handler = handle_report_callback
         else:

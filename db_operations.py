@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import asyncio
+import json
 from typing import Optional, Dict, List, Tuple, Any
 from functools import wraps
 
@@ -151,9 +152,18 @@ def update_order_weekday_group(conn, cursor, chat_id: int, new_weekday_group: st
     return cursor.rowcount > 0
 
 
-def delete_order_by_chat_id(chat_id: int) -> bool:
-    """删除订单（标记为完成或违约完成时使用）"""
-    return True
+@db_transaction
+def delete_order_by_chat_id(conn, cursor, chat_id: int) -> bool:
+    """删除订单（用于撤销订单创建）"""
+    cursor.execute('DELETE FROM orders WHERE chat_id = ?', (chat_id,))
+    return cursor.rowcount > 0
+
+
+@db_transaction
+def delete_order_by_order_id(conn, cursor, order_id: str) -> bool:
+    """根据订单ID删除订单"""
+    cursor.execute('DELETE FROM orders WHERE order_id = ?', (order_id,))
+    return cursor.rowcount > 0
 
 # ========== 查找功能 ==========
 
@@ -756,12 +766,13 @@ def update_payment_account(conn, cursor, account_type: str, account_number: str 
 
 
 @db_transaction
-def record_expense(conn, cursor, date: str, type: str, amount: float, note: str) -> bool:
-    """记录开销"""
+def record_expense(conn, cursor, date: str, type: str, amount: float, note: str) -> int:
+    """记录开销，返回开销记录ID"""
     cursor.execute('''
     INSERT INTO expense_records (date, type, amount, note)
     VALUES (?, ?, ?, ?)
     ''', (date, type, amount, note))
+    expense_id = cursor.lastrowid
 
     field = 'company_expenses' if type == 'company' else 'other_expenses'
 
@@ -835,7 +846,7 @@ def record_expense(conn, cursor, date: str, type: str, amount: float, note: str)
         WHERE date = ? AND group_id IS NULL
         ''', (amount, date))
 
-    return True
+    return expense_id
 
 
 @db_query
@@ -860,6 +871,13 @@ def get_expense_records(conn, cursor, start_date: str, end_date: str = None, typ
     cursor.execute(query, params)
     rows = cursor.fetchall()
     return [dict(row) for row in rows]
+
+
+@db_transaction
+def delete_expense_record(conn, cursor, expense_id: int) -> bool:
+    """删除开销记录"""
+    cursor.execute('DELETE FROM expense_records WHERE id = ?', (expense_id,))
+    return cursor.rowcount > 0
 
 # ========== 定时播报操作 ==========
 
@@ -1058,3 +1076,73 @@ def get_income_summary_by_group(conn, cursor, start_date: str, end_date: str = N
         }
 
     return summary
+
+# ========== 操作历史（撤销功能） ==========
+
+
+@db_transaction
+def record_operation(conn, cursor, user_id: int, operation_type: str, operation_data: Dict) -> int:
+    """记录操作历史，返回操作ID"""
+    cursor.execute('''
+    INSERT INTO operation_history (user_id, operation_type, operation_data, is_undone)
+    VALUES (?, ?, ?, 0)
+    ''', (user_id, operation_type, json.dumps(operation_data, ensure_ascii=False)))
+    return cursor.lastrowid
+
+
+@db_query
+def get_last_operation(conn, cursor, user_id: int) -> Optional[Dict]:
+    """获取用户最后一个未撤销的操作"""
+    cursor.execute('''
+    SELECT * FROM operation_history 
+    WHERE user_id = ? AND is_undone = 0
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+    ''', (user_id,))
+    row = cursor.fetchone()
+    if row:
+        result = dict(row)
+        result['operation_data'] = json.loads(result['operation_data'])
+        return result
+    return None
+
+
+@db_transaction
+def mark_operation_undone(conn, cursor, operation_id: int) -> bool:
+    """标记操作为已撤销"""
+    cursor.execute('''
+    UPDATE operation_history 
+    SET is_undone = 1
+    WHERE id = ?
+    ''', (operation_id,))
+    return cursor.rowcount > 0
+
+
+@db_query
+def get_operation_by_id(conn, cursor, operation_id: int) -> Optional[Dict]:
+    """根据ID获取操作记录"""
+    cursor.execute('SELECT * FROM operation_history WHERE id = ?', (operation_id,))
+    row = cursor.fetchone()
+    if row:
+        result = dict(row)
+        result['operation_data'] = json.loads(result['operation_data'])
+        return result
+    return None
+
+
+@db_query
+def get_recent_operations(conn, cursor, user_id: int, limit: int = 10) -> List[Dict]:
+    """获取用户最近的操作历史"""
+    cursor.execute('''
+    SELECT * FROM operation_history 
+    WHERE user_id = ?
+    ORDER BY created_at DESC, id DESC
+    LIMIT ?
+    ''', (user_id, limit))
+    rows = cursor.fetchall()
+    result = []
+    for row in rows:
+        op = dict(row)
+        op['operation_data'] = json.loads(op['operation_data'])
+        result.append(op)
+    return result

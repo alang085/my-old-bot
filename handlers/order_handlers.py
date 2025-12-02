@@ -40,10 +40,30 @@ async def set_normal(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await reply_func(message)
             return
 
+        old_state = order['state']
         if not await db_operations.update_order_state(chat_id, 'normal'):
             message = "❌ Failed: DB Error"
             await reply_func(message)
             return
+
+        # 记录操作历史（用于撤销）
+        user_id = update.effective_user.id if update.effective_user else None
+        if user_id:
+            from handlers.undo_handlers import reset_undo_count
+            await db_operations.record_operation(
+                user_id=user_id,
+                operation_type='order_state_change',
+                operation_data={
+                    'chat_id': chat_id,
+                    'order_id': order['order_id'],
+                    'old_state': old_state,
+                    'new_state': 'normal',
+                    'group_id': order['group_id'],
+                    'amount': order['amount']
+                }
+            )
+            if context:
+                reset_undo_count(context, user_id)
 
         if is_group_chat(update):
             await reply_func(f"✅ Status Updated: normal\nOrder ID: {order['order_id']}")
@@ -82,10 +102,30 @@ async def set_overdue(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await reply_func(message)
             return
 
+        old_state = order['state']
         if not await db_operations.update_order_state(chat_id, 'overdue'):
             message = "❌ Failed: DB Error"
             await reply_func(message)
             return
+
+        # 记录操作历史（用于撤销）
+        user_id = update.effective_user.id if update.effective_user else None
+        if user_id:
+            from handlers.undo_handlers import reset_undo_count
+            await db_operations.record_operation(
+                user_id=user_id,
+                operation_type='order_state_change',
+                operation_data={
+                    'chat_id': chat_id,
+                    'order_id': order['order_id'],
+                    'old_state': old_state,
+                    'new_state': 'overdue',
+                    'group_id': order['group_id'],
+                    'amount': order['amount']
+                }
+            )
+            if context:
+                reset_undo_count(context, user_id)
 
         if is_group_chat(update):
             await reply_func(f"✅ Status Updated: overdue\nOrder ID: {order['order_id']}")
@@ -123,6 +163,7 @@ async def set_end(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await reply_func(message)
         return
 
+    old_state = order['state']
     await db_operations.update_order_state(chat_id, 'end')
     group_id = order['group_id']
     amount = order['amount']
@@ -145,6 +186,24 @@ async def set_end(update: Update, context: ContextTypes.DEFAULT_TYPE):
         note="订单完成",
         created_by=user_id
     )
+
+    # 记录操作历史（用于撤销）
+    if user_id:
+        from handlers.undo_handlers import reset_undo_count
+        await db_operations.record_operation(
+            user_id=user_id,
+            operation_type='order_completed',
+            operation_data={
+                'chat_id': chat_id,
+                'order_id': order['order_id'],
+                'group_id': group_id,
+                'amount': amount,
+                'old_state': old_state,
+                'date': get_daily_period_date()
+            }
+        )
+        if context:
+            reset_undo_count(context, user_id)
 
     if is_group_chat(update):
         await reply_func(f"✅ Order Completed\nAmount: {amount:.2f}")
@@ -177,6 +236,7 @@ async def set_breach(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await reply_func(message)
             return
 
+        old_state = order['state']
         if not await db_operations.update_order_state(chat_id, 'breach'):
             message = "❌ Failed: DB Error"
             await reply_func(message)
@@ -187,6 +247,25 @@ async def set_breach(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await update_all_stats('valid', -amount, -1, group_id)
         await update_all_stats('breach', amount, 1, group_id)
+
+        # 记录操作历史（用于撤销）
+        user_id = update.effective_user.id if update.effective_user else None
+        if user_id:
+            from handlers.undo_handlers import reset_undo_count
+            await db_operations.record_operation(
+                user_id=user_id,
+                operation_type='order_state_change',
+                operation_data={
+                    'chat_id': chat_id,
+                    'order_id': order['order_id'],
+                    'old_state': old_state,
+                    'new_state': 'breach',
+                    'group_id': group_id,
+                    'amount': amount
+                }
+            )
+            if context:
+                reset_undo_count(context, user_id)
 
         if is_group_chat(update):
             await reply_func(f"✅ Marked as Breach\nAmount: {amount:.2f}")
@@ -253,6 +332,22 @@ async def set_breach_end(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 note="违约完成",
                 created_by=user_id
             )
+
+            # 记录操作历史（用于撤销）
+            if user_id:
+                from handlers.undo_handlers import reset_undo_count
+                await db_operations.record_operation(
+                    user_id=user_id,
+                    operation_type='order_breach_end',
+                    operation_data={
+                        'chat_id': chat_id,
+                        'order_id': order['order_id'],
+                        'group_id': group_id,
+                        'amount': amount,
+                        'date': get_daily_period_date()
+                    }
+                )
+                reset_undo_count(context, user_id)
 
             msg_en = f"✅ Breach Order Ended\nAmount: {amount:.2f}"
 

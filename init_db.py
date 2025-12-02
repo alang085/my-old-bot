@@ -279,6 +279,26 @@ def init_database():
     )
     ''')
 
+    # 创建操作历史表（用于撤销功能）
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS operation_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        operation_type TEXT NOT NULL,
+        operation_data TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        is_undone INTEGER DEFAULT 0
+    )
+    ''')
+
+    # 为操作历史表创建索引
+    cursor.execute('''
+    CREATE INDEX IF NOT EXISTS idx_operation_user_time ON operation_history(user_id, created_at DESC)
+    ''')
+    cursor.execute('''
+    CREATE INDEX IF NOT EXISTS idx_operation_undone ON operation_history(is_undone, created_at DESC)
+    ''')
+
     # 创建索引以优化查询性能
     try:
         cursor.execute('''
