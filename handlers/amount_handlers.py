@@ -82,11 +82,9 @@ async def handle_amount_operation(update: Update, context: ContextTypes.DEFAULT_
                     # 如果有订单，关联到订单的归属ID
                     await process_interest(update, order, amount, context)
                 else:
-                    # 如果没有订单，更新全局和日结数据
-                    await update_all_stats('interest', amount, 0, None)
-                    await update_liquid_capital(amount)
-                    # 记录收入明细
+                    # 如果没有订单，先记录收入明细，再更新统计数据
                     try:
+                        # 1. 先记录收入明细（如果失败，不更新统计数据）
                         await db_operations.record_income(
                             date=get_daily_period_date(),
                             type='interest',
@@ -101,6 +99,20 @@ async def handle_amount_operation(update: Update, context: ContextTypes.DEFAULT_
                         )
                     except Exception as e:
                         logger.error(f"记录利息收入明细失败: {e}", exc_info=True)
+                        message = f"❌ 记录收入明细失败，请稍后重试或联系管理员。错误: {str(e)}"
+                        await update.message.reply_text(message)
+                        return
+
+                    # 2. 收入明细记录成功后，再更新统计数据
+                    try:
+                        await update_all_stats('interest', amount, 0, None)
+                        await update_liquid_capital(amount)
+                    except Exception as e:
+                        logger.error(f"更新利息收入统计数据失败: {e}", exc_info=True)
+                        # 统计数据更新失败，但收入明细已记录，需要手动修复或重新计算
+                        message = f"❌ 更新统计失败，但收入明细已记录。请使用 /fix_statistics 修复统计数据。错误: {str(e)}"
+                        await update.message.reply_text(message)
+                        return
                     # 记录操作历史（用于撤销）- 使用当前聊天环境的 chat_id
                     current_chat_id = update.effective_chat.id if update.effective_chat else None
                     if current_chat_id and user_id:
@@ -242,15 +254,10 @@ async def process_interest(update: Update, order: dict, amount: float, context: 
 
         group_id = order['group_id']
 
-        # 1. 利息收入
-        await update_all_stats('interest', amount, 0, group_id)
-
-        # 2. 流动资金增加
-        await update_liquid_capital(amount)
-
-        # 记录收入明细
+        # 先记录收入明细（源数据），再更新统计数据，确保数据一致性
         user_id = update.effective_user.id if update.effective_user else None
         try:
+            # 1. 先记录收入明细（如果失败，不更新统计数据）
             await db_operations.record_income(
                 date=get_daily_period_date(),
                 type='interest',
@@ -265,6 +272,22 @@ async def process_interest(update: Update, order: dict, amount: float, context: 
             )
         except Exception as e:
             logger.error(f"记录利息收入明细失败: {e}", exc_info=True)
+            message = f"❌ 记录收入明细失败，请稍后重试或联系管理员。错误: {str(e)}"
+            await update.message.reply_text(message)
+            return
+
+        # 2. 收入明细记录成功后，再更新统计数据
+        try:
+            # 1. 利息收入
+            await update_all_stats('interest', amount, 0, group_id)
+            # 2. 流动资金增加
+            await update_liquid_capital(amount)
+        except Exception as e:
+            logger.error(f"更新利息收入统计数据失败: {e}", exc_info=True)
+            # 统计数据更新失败，但收入明细已记录，需要手动修复或重新计算
+            message = f"❌ 更新统计失败，但收入明细已记录。请使用 /fix_statistics 修复统计数据。错误: {str(e)}"
+            await update.message.reply_text(message)
+            return
 
         # 记录操作历史（用于撤销）
         # 记录操作历史（用于撤销）- 使用当前聊天环境的 chat_id

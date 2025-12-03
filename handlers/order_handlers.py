@@ -173,33 +173,37 @@ async def set_end(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 统一获取日期，确保统计更新和收入记录使用相同的日期
     date = get_daily_period_date()
 
+    # 先记录收入明细（源数据），再更新统计数据，确保数据一致性
+    user_id = update.effective_user.id if update.effective_user else None
+    try:
+        # 1. 先记录收入明细（如果失败，不更新统计数据）
+        await db_operations.record_income(
+            date=date,
+            type='completed',
+            amount=amount,
+            group_id=group_id,
+            order_id=order['order_id'],
+            order_date=order['date'],
+            customer=order['customer'],
+            weekday_group=order['weekday_group'],
+            note="订单完成",
+            created_by=user_id
+        )
+    except Exception as e:
+        logger.error(f"记录订单完成收入明细失败: {e}", exc_info=True)
+        message = f"❌ 记录收入明细失败，请稍后重试或联系管理员。错误: {str(e)}"
+        await reply_func(message)
+        return
+
+    # 2. 收入明细记录成功后，再更新统计数据
     try:
         await update_all_stats('valid', -amount, -1, group_id)
         await update_all_stats('completed', amount, 1, group_id)
         await update_liquid_capital(amount)
-
-        # 记录收入明细（使用相同的日期）
-        user_id = update.effective_user.id if update.effective_user else None
-        try:
-            await db_operations.record_income(
-                date=date,
-                type='completed',
-                amount=amount,
-                group_id=group_id,
-                order_id=order['order_id'],
-                order_date=order['date'],
-                customer=order['customer'],
-                weekday_group=order['weekday_group'],
-                note="订单完成",
-                created_by=user_id
-            )
-        except Exception as e:
-            logger.error(f"记录订单完成收入明细失败: {e}", exc_info=True)
-            # 继续执行，不中断流程
     except Exception as e:
         logger.error(f"更新订单完成统计数据失败: {e}", exc_info=True)
-        # 重新抛出异常，让用户知道操作失败
-        message = f"❌ 更新统计失败，请稍后重试或联系管理员。错误: {str(e)}"
+        # 统计数据更新失败，但收入明细已记录，需要手动修复或重新计算
+        message = f"❌ 更新统计失败，但收入明细已记录。请使用 /fix_statistics 修复统计数据。错误: {str(e)}"
         await reply_func(message)
         return
 
@@ -336,30 +340,35 @@ async def set_breach_end(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # 统一获取日期，确保统计更新和收入记录使用相同的日期
             date = get_daily_period_date()
 
+            # 先记录收入明细（源数据），再更新统计数据，确保数据一致性
+            user_id = update.effective_user.id if update.effective_user else None
+            try:
+                # 1. 先记录收入明细（如果失败，不更新统计数据）
+                await db_operations.record_income(
+                    date=date,
+                    type='breach_end',
+                    amount=amount,
+                    group_id=group_id,
+                    order_id=order['order_id'],
+                    order_date=order['date'],
+                    customer=order['customer'],
+                    weekday_group=order['weekday_group'],
+                    note="违约完成",
+                    created_by=user_id
+                )
+            except Exception as e:
+                logger.error(f"记录违约完成收入明细失败: {e}", exc_info=True)
+                await reply_func(f"❌ 记录收入明细失败，请稍后重试或联系管理员。错误: {str(e)}")
+                return
+
+            # 2. 收入明细记录成功后，再更新统计数据
             try:
                 await update_all_stats('breach_end', amount, 1, group_id)
                 await update_liquid_capital(amount)
-
-                # 记录收入明细（使用相同的日期）
-                user_id = update.effective_user.id if update.effective_user else None
-                try:
-                    await db_operations.record_income(
-                        date=date,
-                        type='breach_end',
-                        amount=amount,
-                        group_id=group_id,
-                        order_id=order['order_id'],
-                        order_date=order['date'],
-                        customer=order['customer'],
-                        weekday_group=order['weekday_group'],
-                        note="违约完成",
-                        created_by=user_id
-                    )
-                except Exception as e:
-                    logger.error(f"记录违约完成收入明细失败: {e}", exc_info=True)
             except Exception as e:
                 logger.error(f"更新违约完成统计数据失败: {e}", exc_info=True)
-                await reply_func(f"❌ 更新统计失败，请稍后重试或联系管理员。错误: {str(e)}")
+                # 统计数据更新失败，但收入明细已记录，需要手动修复或重新计算
+                await reply_func(f"❌ 更新统计失败，但收入明细已记录。请使用 /fix_statistics 修复统计数据。错误: {str(e)}")
                 return
 
             # 记录操作历史（用于撤销）

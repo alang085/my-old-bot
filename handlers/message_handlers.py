@@ -316,16 +316,11 @@ async def _handle_breach_end_amount(update: Update, context: ContextTypes.DEFAUL
         await db_operations.update_order_state(chat_id, 'breach_end')
         group_id = order['group_id']
 
-        # 违约完成订单增加，金额增加
-        await update_all_stats('breach_end', amount, 1, group_id)
-
-        # 更新流动资金
-        await update_liquid_capital(amount)
-
-        # 记录收入明细
+        # 先记录收入明细（源数据），再更新统计数据，确保数据一致性
         from utils.date_helpers import get_daily_period_date
         user_id = update.effective_user.id if update.effective_user else None
         try:
+            # 1. 先记录收入明细（如果失败，不更新统计数据）
             await db_operations.record_income(
                 date=get_daily_period_date(),
                 type='breach_end',
@@ -340,6 +335,22 @@ async def _handle_breach_end_amount(update: Update, context: ContextTypes.DEFAUL
             )
         except Exception as e:
             logger.error(f"记录违约完成收入明细失败: {e}", exc_info=True)
+            msg = f"❌ 记录收入明细失败，请稍后重试或联系管理员。错误: {str(e)}"
+            await update.message.reply_text(msg)
+            return
+
+        # 2. 收入明细记录成功后，再更新统计数据
+        try:
+            # 违约完成订单增加，金额增加
+            await update_all_stats('breach_end', amount, 1, group_id)
+            # 更新流动资金
+            await update_liquid_capital(amount)
+        except Exception as e:
+            logger.error(f"更新违约完成统计数据失败: {e}", exc_info=True)
+            # 统计数据更新失败，但收入明细已记录，需要手动修复或重新计算
+            msg = f"❌ 更新统计失败，但收入明细已记录。请使用 /fix_statistics 修复统计数据。错误: {str(e)}"
+            await update.message.reply_text(msg)
+            return
 
         # 记录操作历史（用于撤销）
         if user_id:
