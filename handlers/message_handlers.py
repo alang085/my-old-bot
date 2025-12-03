@@ -122,6 +122,11 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != 'private':
         return
 
+    # 处理群发消息（必须在私聊中）
+    if user_state == 'BROADCASTING':
+        await _handle_broadcast(update, context, text)
+        return
+
     if user_state in ['QUERY_EXPENSE_COMPANY', 'QUERY_EXPENSE_OTHER']:
         await _handle_expense_query(update, context, text, user_state)
         return
@@ -154,6 +159,46 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_state == 'INCOME_QUERY_DATE':
         await _handle_income_query_date(update, context, text)
         return
+
+    # 处理支付账户相关状态
+    if user_state == 'UPDATING_BALANCE_GCASH':
+        await _handle_update_balance(update, context, text, 'gcash')
+        return
+
+    if user_state == 'UPDATING_BALANCE_PAYMAYA':
+        await _handle_update_balance(update, context, text, 'paymaya')
+        return
+
+    if user_state == 'EDITING_ACCOUNT_GCASH':
+        await _handle_edit_account(update, context, text, 'gcash')
+        return
+
+    if user_state == 'EDITING_ACCOUNT_PAYMAYA':
+        await _handle_edit_account(update, context, text, 'paymaya')
+        return
+
+    if user_state == 'ADDING_ACCOUNT_GCASH':
+        await _handle_add_account(update, context, text, 'gcash')
+        return
+
+    if user_state == 'ADDING_ACCOUNT_PAYMAYA':
+        await _handle_add_account(update, context, text, 'paymaya')
+        return
+
+    if user_state == 'EDITING_ACCOUNT_BY_ID_GCASH':
+        await _handle_edit_account_by_id(update, context, text, 'gcash')
+        return
+
+    if user_state == 'EDITING_ACCOUNT_BY_ID_PAYMAYA':
+        await _handle_edit_account_by_id(update, context, text, 'paymaya')
+        return
+
+    # 处理定时播报输入
+    if user_state and user_state.startswith('SCHEDULE_'):
+        from handlers.schedule_handlers import handle_schedule_input
+        handled = await handle_schedule_input(update, context)
+        if handled:
+            return
 
 
 async def _handle_income_query_date(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
@@ -222,49 +267,6 @@ async def _handle_income_query_date(update: Update, context: ContextTypes.DEFAUL
         logger.error(f"处理日期输入出错: {e}", exc_info=True)
         await update.message.reply_text(f"⚠️ 错误: {e}")
         context.user_data['state'] = None
-
-    if user_state == 'BROADCASTING':
-        await _handle_broadcast(update, context, text)
-        return
-
-    if user_state == 'UPDATING_BALANCE_GCASH':
-        await _handle_update_balance(update, context, text, 'gcash')
-        return
-
-    if user_state == 'UPDATING_BALANCE_PAYMAYA':
-        await _handle_update_balance(update, context, text, 'paymaya')
-        return
-
-    if user_state == 'EDITING_ACCOUNT_GCASH':
-        await _handle_edit_account(update, context, text, 'gcash')
-        return
-
-    if user_state == 'EDITING_ACCOUNT_PAYMAYA':
-        await _handle_edit_account(update, context, text, 'paymaya')
-        return
-
-    if user_state == 'ADDING_ACCOUNT_GCASH':
-        await _handle_add_account(update, context, text, 'gcash')
-        return
-
-    if user_state == 'ADDING_ACCOUNT_PAYMAYA':
-        await _handle_add_account(update, context, text, 'paymaya')
-        return
-
-    if user_state == 'EDITING_ACCOUNT_BY_ID_GCASH':
-        await _handle_edit_account_by_id(update, context, text, 'gcash')
-        return
-
-    if user_state == 'EDITING_ACCOUNT_BY_ID_PAYMAYA':
-        await _handle_edit_account_by_id(update, context, text, 'paymaya')
-        return
-
-    # 处理定时播报输入
-    if user_state and user_state.startswith('SCHEDULE_'):
-        from handlers.schedule_handlers import handle_schedule_input
-        handled = await handle_schedule_input(update, context)
-        if handled:
-            return
 
 
 async def _handle_breach_end_amount(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
