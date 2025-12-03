@@ -184,12 +184,43 @@ async def update_order_state_from_title(update: Update, context: ContextTypes.DE
 
             elif is_current_valid and is_target_end:
                 # Valid -> End (完成订单)
-                await update_all_stats('valid', -amount, -1, group_id)
-                await update_all_stats('completed', amount, 1, group_id)
-                # 完成订单需要增加流动资金
-                from utils.stats_helpers import update_liquid_capital
-                await update_liquid_capital(amount)
-                await reply_in_group(update, f"✅ Order Completed: {target_state} (Auto)\nStats moved to Completed.")
+                # 先记录收入明细（源数据），再更新统计数据，确保数据一致性
+                from utils.date_helpers import get_daily_period_date
+                user_id = update.effective_user.id if update.effective_user else 0
+                date = get_daily_period_date()
+                
+                try:
+                    # 1. 先记录收入明细（如果失败，不更新统计数据）
+                    await db_operations.record_income(
+                        date=date,
+                        type='completed',
+                        amount=amount,
+                        group_id=group_id,
+                        order_id=order_id,
+                        order_date=order['date'],
+                        customer=order['customer'],
+                        weekday_group=order['weekday_group'],
+                        note="订单完成（自动）",
+                        created_by=user_id
+                    )
+                except Exception as e:
+                    logger.error(f"记录订单完成收入明细失败（自动完成）: {e}", exc_info=True)
+                    await reply_in_group(update, f"❌ 记录收入明细失败，订单状态已更新但未记录收入。错误: {str(e)}")
+                    return
+                
+                # 2. 收入明细记录成功后，再更新统计数据
+                try:
+                    await update_all_stats('valid', -amount, -1, group_id)
+                    await update_all_stats('completed', amount, 1, group_id)
+                    # 完成订单需要增加流动资金
+                    from utils.stats_helpers import update_liquid_capital
+                    await update_liquid_capital(amount)
+                    await reply_in_group(update, f"✅ Order Completed: {target_state} (Auto)\nStats moved to Completed.")
+                except Exception as e:
+                    logger.error(f"更新订单完成统计数据失败（自动完成）: {e}", exc_info=True)
+                    # 统计数据更新失败，但收入明细已记录，需要手动修复或重新计算
+                    await reply_in_group(update, f"❌ 更新统计失败，但收入明细已记录。请使用 /fix_statistics 修复统计数据。错误: {str(e)}")
+                    return
 
             else:
                 # Normal <-> Overdue (都在 Valid 池中，仅状态变更)
