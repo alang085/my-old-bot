@@ -191,9 +191,8 @@ def main() -> None:
     application.add_handler(CommandHandler(
         "schedule", private_chat_only(authorized_required(error_handler(show_schedule_menu)))))
     
-    # 订单总表（私聊，仅管理员）
-    application.add_handler(CommandHandler(
-        "ordertable", private_chat_only(admin_required(show_order_table))))
+    # 订单总表（私聊，仅管理员）- 函数内部已有装饰器和权限检查
+    application.add_handler(CommandHandler("ordertable", show_order_table))
 
     # 订单操作命令（群组，需要授权）
     application.add_handler(CommandHandler(

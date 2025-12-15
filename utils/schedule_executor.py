@@ -40,8 +40,10 @@ async def setup_scheduled_broadcasts(bot):
         scheduler = AsyncIOScheduler()
         scheduler.start()
     
-    # 清除所有现有任务
-    scheduler.remove_all_jobs()
+    # 只清除播报任务（不清除日切报表任务）
+    for job in scheduler.get_jobs():
+        if job.id.startswith("broadcast_"):
+            scheduler.remove_job(job.id)
     
     # 获取所有激活的定时播报
     broadcasts = await db_operations.get_active_scheduled_broadcasts()
