@@ -1351,7 +1351,7 @@ async def _handle_update_balance(
                 )
         else:
             await update.message.reply_text(
-                f"❌ 更新失败\n"
+                "❌ 更新失败\n"
                 f"请检查：\n"
                 f"1. 账户是否存在\n"
                 f"2. 数据库连接是否正常\n"
@@ -1456,7 +1456,7 @@ async def _handle_update_balance_by_id(
                 )
         else:
             await update.message.reply_text(
-                f"❌ 更新失败\n"
+                "❌ 更新失败\n"
                 f"请检查：\n"
                 f"1. 账户是否存在\n"
                 f"2. 数据库连接是否正常\n"
