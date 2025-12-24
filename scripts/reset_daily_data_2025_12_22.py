@@ -237,13 +237,13 @@ def generate_report(conn):
     # 2. grouped_data 统计
     cursor.execute("SELECT COUNT(*) FROM grouped_data")
     group_count = cursor.fetchone()[0]
-    logger.info(f"\n【grouped_data】")
+    logger.info("\n【grouped_data】")
     logger.info(f"  分组数量: {group_count}")
 
     # 3. daily_data 统计
     cursor.execute("SELECT COUNT(*) FROM daily_data WHERE date = ?", (TARGET_DATE,))
     daily_count = cursor.fetchone()[0]
-    logger.info(f"\n【daily_data】")
+    logger.info("\n【daily_data】")
     logger.info(f"  {TARGET_DATE} 的记录数: {daily_count}")
 
     # 4. income_records 统计
@@ -253,14 +253,14 @@ def generate_report(conn):
         "SELECT COUNT(*) FROM income_records WHERE date = ? AND is_undone = 1", (TARGET_DATE,)
     )
     income_undone_count = cursor.fetchone()[0]
-    logger.info(f"\n【income_records】")
+    logger.info("\n【income_records】")
     logger.info(f"  {TARGET_DATE} 的记录数: {income_count}")
     logger.info(f"  已撤销记录数: {income_undone_count}")
 
     # 5. expense_records 统计
     cursor.execute("SELECT COUNT(*) FROM expense_records WHERE date = ?", (TARGET_DATE,))
     expense_count = cursor.fetchone()[0]
-    logger.info(f"\n【expense_records】")
+    logger.info("\n【expense_records】")
     logger.info(f"  {TARGET_DATE} 的记录数: {expense_count}")
 
     logger.info("\n" + "=" * 60)

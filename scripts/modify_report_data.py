@@ -32,7 +32,7 @@ def get_connection():
     """获取数据库连接"""
     if not os.path.exists(DB_NAME):
         print(f"❌ 数据库文件不存在: {DB_NAME}")
-        print(f"   请检查 DATA_DIR 环境变量或数据库文件路径")
+        print("   请检查 DATA_DIR 环境变量或数据库文件路径")
         sys.exit(1)
 
     conn = sqlite3.connect(DB_NAME)
