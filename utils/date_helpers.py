@@ -82,7 +82,7 @@ def parse_datetime_str(datetime_str: str) -> Optional[datetime]:
 
         return dt
 
-    except Exception as e:
+    except Exception:
         return None
 
 

@@ -406,7 +406,6 @@ async def _undo_order_breach_end(operation_data: dict) -> bool:
         operation_group_id = operation_data.get("group_id")  # 完成时的归属ID
         chat_id = operation_data.get("chat_id")
         order_id = operation_data.get("order_id")
-        old_state = operation_data.get("old_state")  # 完成前的状态
         operation_data.get("date", get_daily_period_date())
 
         if not chat_id or not order_id:

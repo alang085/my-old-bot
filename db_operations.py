@@ -1060,13 +1060,6 @@ def update_payment_account_by_id(
     balance: float = None,
 ) -> bool:
     """根据ID更新支付账号信息"""
-    # 定义允许更新的字段名白名单，防止SQL注入
-    valid_fields = {
-        "account_number": account_number,
-        "account_name": account_name,
-        "balance": balance,
-    }
-
     updates = []
     params = []
 

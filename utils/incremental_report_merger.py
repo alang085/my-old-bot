@@ -42,10 +42,6 @@ async def calculate_incremental_stats(orders_data: List[Dict], expense_records: 
         if not order_id:
             continue
 
-        # 检查是否是新订单（基准日期之后创建的）
-        order_date = order.get("date", "")[:10] if order.get("date") else ""
-        created_at = order.get("created_at", "")[:10] if order.get("created_at") else ""
-
         # 如果是新订单（在基准日期之后创建）
         if order_id not in processed_orders:
             processed_orders.add(order_id)

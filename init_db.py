@@ -568,7 +568,7 @@ def init_database():
         CREATE INDEX IF NOT EXISTS idx_income_group_type ON income_records(group_id, type)
         """
         )
-    except sqlite3.OperationalError as e:
+    except sqlite3.OperationalError:
         # 索引可能已存在，忽略错误
         pass
 

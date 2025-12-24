@@ -492,7 +492,7 @@ def main() -> None:
         application.post_init = post_init
         # 启动机器人
         application.run_polling(drop_pending_updates=True)
-    except telegram_error.Conflict as e:
+    except telegram_error.Conflict:
         logger.error("机器人冲突错误：检测到多个机器人实例正在运行", exc_info=True)
         if os.getenv("DEBUG", "0") == "1":
             print("\n" + "=" * 60)
