@@ -1352,10 +1352,10 @@ async def _handle_update_balance(
         else:
             await update.message.reply_text(
                 "❌ 更新失败\n"
-                f"请检查：\n"
-                f"1. 账户是否存在\n"
-                f"2. 数据库连接是否正常\n"
-                f"3. 是否有权限"
+                "请检查：\n"
+                "1. 账户是否存在\n"
+                "2. 数据库连接是否正常\n"
+                "3. 是否有权限"
             )
 
         context.user_data["state"] = None
@@ -1457,10 +1457,10 @@ async def _handle_update_balance_by_id(
         else:
             await update.message.reply_text(
                 "❌ 更新失败\n"
-                f"请检查：\n"
-                f"1. 账户是否存在\n"
-                f"2. 数据库连接是否正常\n"
-                f"3. 是否有权限"
+                "请检查：\n"
+                "1. 账户是否存在\n"
+                "2. 数据库连接是否正常\n"
+                "3. 是否有权限"
             )
 
         context.user_data["state"] = None
