@@ -157,7 +157,7 @@ async def handle_group_message_callback(update: Update, context: ContextTypes.DE
             logger.error(f"处理设置消息失败: {e}", exc_info=True)
             try:
                 await query.answer(f"❌ 操作失败: {str(e)[:50]}", show_alert=True)
-            except:
+            except Exception:
                 pass
 
     elif data.startswith("groupmsg_select_"):
@@ -281,20 +281,20 @@ async def handle_group_message_callback(update: Update, context: ContextTypes.DE
                     try:
                         error_msg = f"❌ 操作失败: {str(e2)[:30]}"
                         await query.answer(error_msg, show_alert=True)
-                    except:
+                    except Exception:
                         pass
         except (ValueError, IndexError) as e:
             logger.error(f"解析群组ID失败: {data}, 错误: {e}", exc_info=True)
             try:
                 await query.answer("❌ 无效的群组ID", show_alert=True)
-            except:
+            except Exception:
                 pass
         except Exception as e:
             logger.error(f"处理群组选择失败: {data}, 错误: {e}", exc_info=True)
             try:
                 error_msg = f"❌ 操作失败: {str(e)[:50]}"
                 await query.answer(error_msg, show_alert=True)
-            except:
+            except Exception:
                 pass
 
     elif data.startswith("groupmsg_view_all_"):
@@ -374,7 +374,7 @@ async def handle_group_message_callback(update: Update, context: ContextTypes.DE
             logger.error(f"查看消息内容失败: {e}", exc_info=True)
             try:
                 await query.answer("❌ 查看失败", show_alert=True)
-            except:
+            except Exception:
                 pass
 
     elif data.startswith("batch_set_select_"):
@@ -418,7 +418,7 @@ async def handle_group_message_callback(update: Update, context: ContextTypes.DE
             logger.error(f"批量设置选择群组失败: {e}", exc_info=True)
             try:
                 await query.answer("❌ 选择失败", show_alert=True)
-            except:
+            except Exception:
                 pass
 
     elif data == "batch_set_cancel":
