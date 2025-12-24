@@ -164,7 +164,7 @@ async def setup_group_auto(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"💡 提示：在私聊中使用 /groupmsg 设置消息内容"
                 )
             else:
-                await update.message.reply_text(f"❌ 启用失败")
+                await update.message.reply_text("❌ 启用失败")
         else:
             # 如果不存在，创建新配置
             success = await db_operations.save_group_message_config(
@@ -180,7 +180,7 @@ async def setup_group_auto(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"💡 提示：在私聊中使用 /groupmsg 设置消息内容"
                 )
             else:
-                await update.message.reply_text(f"❌ 设置失败")
+                await update.message.reply_text("❌ 设置失败")
     except Exception as e:
         logger.error(f"一键设置群组自动消息功能失败: {e}", exc_info=True)
         await update.message.reply_text(f"❌ 设置失败: {e}")
