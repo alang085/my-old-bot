@@ -76,13 +76,13 @@ async def undo_last_operation(update: Update, context: ContextTypes.DEFAULT_TYPE
         if is_group:
             await update.message.reply_text(
                 f"❌ No undoable operation in this group chat today ({today_date}).\n\n"
-                f"Note: /undo command can only undo today's operations executed in the current chat environment."
+                "Note: /undo command can only undo today's operations executed in the current chat environment."
             )
         else:
             chat_type = "私聊"
             await update.message.reply_text(
                 f"❌ 在当前{chat_type}环境中今天（{today_date}）没有可撤销的操作\n\n"
-                f"提示：/undo 命令只能撤销当天在当前聊天环境（私聊或群聊）中执行的上一个操作。"
+                "提示：/undo 命令只能撤销当天在当前聊天环境（私聊或群聊）中执行的上一个操作。"
             )
         return
 
@@ -98,13 +98,13 @@ async def undo_last_operation(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         if is_group:
             await update.message.reply_text(
-                f"❌ Security check failed: Operation does not belong to this group chat.\n\n"
-                f"Note: /undo command can only undo operations executed in the current chat environment."
+                "❌ Security check failed: Operation does not belong to this group chat.\n\n"
+                "Note: /undo command can only undo operations executed in the current chat environment."
             )
         else:
             await update.message.reply_text(
-                f"❌ 安全验证失败：操作不属于当前聊天环境\n\n"
-                f"提示：/undo 命令只能撤销在当前聊天环境（私聊或群聊）中执行的操作。"
+                "❌ 安全验证失败：操作不属于当前聊天环境\n\n"
+                "提示：/undo 命令只能撤销在当前聊天环境（私聊或群聊）中执行的操作。"
             )
         return
 
@@ -148,14 +148,14 @@ async def undo_last_operation(update: Update, context: ContextTypes.DEFAULT_TYPE
         elif operation_type == "order_completed":
             # 撤销订单完成
             success = await _undo_order_completed(operation_data)
-            undo_message = f"✅ 已撤销订单完成操作"
-            undo_message_en = f"✅ Undone order completion"
+            undo_message = "✅ 已撤销订单完成操作"
+            undo_message_en = "✅ Undone order completion"
 
         elif operation_type == "order_breach_end":
             # 撤销违约完成
             success = await _undo_order_breach_end(operation_data)
-            undo_message = f"✅ 已撤销违约完成操作"
-            undo_message_en = f"✅ Undone breach order completion"
+            undo_message = "✅ 已撤销违约完成操作"
+            undo_message_en = "✅ Undone breach order completion"
 
         elif operation_type == "order_created":
             # 撤销订单创建
@@ -226,7 +226,7 @@ async def undo_last_operation(update: Update, context: ContextTypes.DEFAULT_TYPE
                 chat_info = f"私聊 (用户ID: {user_id})\n"
 
             admin_message = (
-                f"⚠️ 撤销操作通知\n\n"
+                "⚠️ 撤销操作通知\n\n"
                 f"用户: {user_full_name} (@{user_name if update.effective_user.username else 'N/A'})\n"
                 f"用户ID: {user_id}\n"
                 f"{chat_info}"
@@ -378,7 +378,7 @@ async def _undo_order_completed(operation_data: dict) -> bool:
         if current_group_id != operation_group_id:
             # 归属ID已变更：从原归属减少完成订单，从新归属恢复有效订单
             logger.info(
-                f"撤销订单完成：归属ID已变更 "
+                "撤销订单完成：归属ID已变更 "
                 f"(完成时: {operation_group_id}, 当前: {current_group_id})"
             )
             # 从完成时的归属ID减少完成订单统计
@@ -438,7 +438,7 @@ async def _undo_order_breach_end(operation_data: dict) -> bool:
         if current_group_id != operation_group_id:
             # 归属ID已变更：从原归属减少违约完成订单，从新归属恢复违约订单
             logger.info(
-                f"撤销违约完成：归属ID已变更 "
+                "撤销违约完成：归属ID已变更 "
                 f"(完成时: {operation_group_id}, 当前: {current_group_id})"
             )
             # 从完成时的归属ID减少违约完成订单统计
