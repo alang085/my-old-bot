@@ -44,31 +44,31 @@ async def check_permission(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # 构建权限信息
     permission_info = []
-    permission_info.append(f"👤 用户信息:")
+    permission_info.append("👤 用户信息:")
     permission_info.append(f"  ID: {user_id}")
     permission_info.append(f"  用户名: @{username}")
     permission_info.append(f"  姓名: {first_name}")
     permission_info.append("")
-    permission_info.append(f"🔐 权限状态:")
+    permission_info.append("🔐 权限状态:")
 
     if is_admin:
-        permission_info.append(f"  ✅ 管理员")
+        permission_info.append("  ✅ 管理员")
     else:
-        permission_info.append(f"  ❌ 非管理员")
+        permission_info.append("  ❌ 非管理员")
 
     if is_authorized:
-        permission_info.append(f"  ✅ 授权用户")
+        permission_info.append("  ✅ 授权用户")
     else:
-        permission_info.append(f"  ❌ 未授权用户")
+        permission_info.append("  ❌ 未授权用户")
 
     if user_group_ids:
         permission_info.append("")
-        permission_info.append(f"📋 可访问的归属ID:")
+        permission_info.append("📋 可访问的归属ID:")
         for group_id in user_group_ids:
             permission_info.append(f"  - {group_id}")
     else:
         permission_info.append("")
-        permission_info.append(f"📋 可访问的归属ID: 无")
+        permission_info.append("📋 可访问的归属ID: 无")
 
     # 发送权限信息
     message = "\n".join(permission_info)
@@ -189,8 +189,8 @@ async def show_current_order(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     # 构建订单信息
     msg = (
-        f"📋 Current Order Status:\n"
-        f"──────────────────\n"
+        "📋 Current Order Status:\n"
+        "──────────────────\n"
         f"📝 Order ID: `{order['order_id']}`\n"
         f"🏷️ Group ID: `{order['group_id']}`\n"
         f"📅 Date: {order['date']}\n"
@@ -203,13 +203,13 @@ async def show_current_order(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # 添加利息信息
     if interest_count > 0:
         msg += (
-            f"──────────────────\n"
-            f"💵 Interest Collected:\n"
+            "──────────────────\n"
+            "💵 Interest Collected:\n"
             f"   Total: {interest_total:,.2f}\n"
             f"   Times: {interest_count}\n"
         )
     else:
-        msg += f"──────────────────\n" f"💵 Interest Collected: 0.00\n"
+        msg += "──────────────────\n" "💵 Interest Collected: 0.00\n"
 
     msg += "──────────────────"
 
@@ -266,7 +266,7 @@ async def adjust_funds(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     financial_data = await db_operations.get_financial_data()
     await update.message.reply_text(
-        f"✅ 资金调整成功\n"
+        "✅ 资金调整成功\n"
         f"调整类型: {'增加' if amount > 0 else '减少'}\n"
         f"调整金额: {abs(amount):.2f}\n"
         f"调整后余额: {financial_data['liquid_funds']:.2f}\n"
@@ -442,7 +442,7 @@ async def update_weekday_groups(update: Update, context: ContextTypes.DEFAULT_TY
                 error_count += 1
 
         result_msg = (
-            f"✅ 更新完成！\n\n"
+            "✅ 更新完成！\n\n"
             f"已更新: {updated_count} 个订单\n"
             f"跳过: {skipped_count} 个订单\n"
             f"错误: {error_count} 个订单\n"
@@ -791,7 +791,7 @@ async def find_tail_orders(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # 构建结果消息
         result_msg = "🔍 有效金额尾数分析报告\n\n"
-        result_msg += f"📊 总体统计：\n"
+        result_msg += "📊 总体统计：\n"
         result_msg += f"有效订单数: {len(all_valid_orders)}\n"
         result_msg += f"实际有效金额: {actual_valid_amount:,.2f}\n"
         result_msg += f"统计有效金额: {stats_valid_amount:,.2f}\n"
@@ -802,10 +802,10 @@ async def find_tail_orders(update: Update, context: ContextTypes.DEFAULT_TYPE):
         stats_tail = int(stats_valid_amount % 1000)
 
         if actual_tail == 6:
-            result_msg += f"⚠️ 实际有效金额尾数是 6\n"
+            result_msg += "⚠️ 实际有效金额尾数是 6\n"
         elif stats_tail == 6:
             result_msg += f"⚠️ 统计有效金额尾数是 6（但实际尾数是 {actual_tail}）\n"
-            result_msg += f"   说明统计数据不一致，建议运行 /fix_statistics\n\n"
+            result_msg += "   说明统计数据不一致，建议运行 /fix_statistics\n\n"
         else:
             result_msg += f"✅ 总金额尾数: 实际={actual_tail}, 统计={stats_tail}\n\n"
 
@@ -825,7 +825,7 @@ async def find_tail_orders(update: Update, context: ContextTypes.DEFAULT_TYPE):
             result_msg += "✅ 没有找到尾数为 6 的订单\n\n"
 
         # 按归属ID分组显示
-        result_msg += f"📋 按归属ID分组分析：\n\n"
+        result_msg += "📋 按归属ID分组分析：\n\n"
         for group_id in sorted(all_group_ids):
             analysis = group_analysis[group_id]
             result_msg += f"{group_id}:\n"
@@ -837,7 +837,7 @@ async def find_tail_orders(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
             if analysis["actual_tail"] == 6 or analysis["stats_tail"] == 6:
-                result_msg += f"  ⚠️ 该归属ID导致尾数6！\n"
+                result_msg += "  ⚠️ 该归属ID导致尾数6！\n"
 
             if analysis["non_thousand"]:
                 result_msg += f"  非整千数订单: {len(analysis['non_thousand'])} 个\n"

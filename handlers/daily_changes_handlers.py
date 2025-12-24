@@ -152,7 +152,7 @@ async def get_daily_changes(date: str) -> dict:
 
 def generate_changes_table(date: str, changes: dict) -> str:
     """生成每日数据变更表文本"""
-    text = f"📊 <b>每日数据变更表</b>\n"
+    text = "📊 <b>每日数据变更表</b>\n"
     text += f"日期: {date}\n"
     text += "═" * 40 + "\n\n"
 
