@@ -410,7 +410,7 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 await update.message.reply_text(f"✅ {type_name}已设置")
         else:
-            await update.message.reply_text(f"❌ 设置失败")
+            await update.message.reply_text("❌ 设置失败")
 
         context.user_data["state"] = None
         context.user_data.pop("setting_message_chat_id", None)
@@ -1120,7 +1120,7 @@ async def _handle_search_amount_input(
         # 删除处理中消息
         try:
             await processing_msg.delete()
-        except:
+        except Exception:
             pass
 
         # 计算选中订单的总金额
