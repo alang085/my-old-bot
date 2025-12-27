@@ -7,12 +7,67 @@ import logging
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
-# 本地模块
-import db_operations
 from config import ADMIN_IDS
-from utils.callback_helpers import safe_query_reply_text
+
+# 本地模块
+from handlers.data_access import (
+    delete_anti_fraud_message_for_callback,
+    delete_promotion_message_for_callback,
+    get_all_anti_fraud_messages_for_callback,
+    get_all_promotion_messages_for_callback,
+    get_group_message_config_by_chat_id_for_callback,
+    get_group_message_configs_for_callback,
+    toggle_anti_fraud_message_for_callback,
+    toggle_promotion_message_for_callback,
+)
+from utils.callback_helpers import safe_edit_message_text, safe_query_reply_text
 
 logger = logging.getLogger(__name__)
+
+
+async def _refresh_group_message_list(query, configs):
+    """刷新群组消息列表（辅助函数，避免递归调用）"""
+    try:
+        msg = "📢 群组消息管理\n\n"
+
+        if not configs:
+            msg += "❌ 当前没有配置的总群\n\n"
+            msg += "使用 /groupmsg_add <chat_id> 添加总群"
+        else:
+            msg += "已配置的总群：\n\n"
+            for config in configs:
+                chat_id = config.get("chat_id")
+                chat_title = config.get("chat_title", "未设置")
+                is_active = config.get("is_active", 0)
+                status = "✅ 启用" if is_active else "❌ 禁用"
+                msg += f"📌 {chat_title} (ID: {chat_id})\n"
+                msg += f"   状态: {status}\n\n"
+
+        keyboard = [
+            [InlineKeyboardButton("➕ 添加总群/频道", callback_data="groupmsg_add")],
+            [InlineKeyboardButton("🔄 刷新", callback_data="groupmsg_refresh")],
+        ]
+
+        # 为每个群组添加启用/禁用按钮和设置链接按钮
+        for config in configs:
+            chat_id = config.get("chat_id")
+            chat_title = config.get("chat_title", f"ID: {chat_id}")
+            is_active = config.get("is_active", 0)
+            action_text = "❌ 禁用" if is_active else "✅ 启用"
+            keyboard.append(
+                [
+                    InlineKeyboardButton(
+                        f"{action_text} - {chat_title}", callback_data=f"groupmsg_toggle_{chat_id}"
+                    ),
+                    InlineKeyboardButton(
+                        "🔗 设置链接", callback_data=f"groupmsg_set_links_{chat_id}"
+                    ),
+                ]
+            )
+
+        await safe_edit_message_text(query, msg, reply_markup=InlineKeyboardMarkup(keyboard))
+    except Exception as e:
+        logger.error(f"刷新群组消息列表失败: {e}", exc_info=True)
 
 
 # 注意：不要在函数上使用 @authorized_required，因为在 main.py 中注册时已经使用了
@@ -39,7 +94,7 @@ async def handle_group_message_callback(update: Update, context: ContextTypes.DE
     if data == "groupmsg_refresh":
         logger.info("处理刷新回调")
         try:
-            configs = await db_operations.get_group_message_configs()
+            configs = await get_group_message_configs_for_callback()
 
             msg = "📢 群组消息管理\n\n"
 
@@ -55,31 +110,32 @@ async def handle_group_message_callback(update: Update, context: ContextTypes.DE
                     status = "✅ 启用" if is_active else "❌ 禁用"
 
                     msg += f"📌 {chat_title} (ID: {chat_id})\n"
-                    msg += f"   状态: {status}\n"
-                    msg += f"   开工信息: {'已设置' if config.get('start_work_message') else '未设置'}\n"
-                    msg += (
-                        f"   收工信息: {'已设置' if config.get('end_work_message') else '未设置'}\n"
-                    )
-                    msg += f"   欢迎信息: {'已设置' if config.get('welcome_message') else '未设置'}\n\n"
+                    msg += f"   状态: {status}\n\n"
 
             keyboard = [
-                [InlineKeyboardButton("➕ 添加总群", callback_data="groupmsg_add")],
-                [InlineKeyboardButton("📝 设置消息", callback_data="groupmsg_set_message")],
+                [InlineKeyboardButton("➕ 添加总群/频道", callback_data="groupmsg_add")],
                 [InlineKeyboardButton("🔄 刷新", callback_data="groupmsg_refresh")],
             ]
 
-            try:
-                await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
-            except Exception as e:
-                logger.error(f"编辑消息失败: {e}", exc_info=True)
-                # 如果编辑失败，尝试发送新消息
-                try:
-                    await safe_query_reply_text(
-                        query, msg, reply_markup=InlineKeyboardMarkup(keyboard)
-                    )
-                except Exception as e2:
-                    logger.error(f"发送消息失败: {e2}", exc_info=True)
-                    await query.answer("❌ 操作失败", show_alert=True)
+            # 为每个群组添加启用/禁用按钮和设置链接按钮
+            for config in configs:
+                chat_id = config.get("chat_id")
+                chat_title = config.get("chat_title", f"ID: {chat_id}")
+                is_active = config.get("is_active", 0)
+                action_text = "❌ 禁用" if is_active else "✅ 启用"
+                keyboard.append(
+                    [
+                        InlineKeyboardButton(
+                            f"{action_text} - {chat_title}",
+                            callback_data=f"groupmsg_toggle_{chat_id}",
+                        ),
+                        InlineKeyboardButton(
+                            "🔗 设置链接", callback_data=f"groupmsg_set_links_{chat_id}"
+                        ),
+                    ]
+                )
+
+            await safe_edit_message_text(query, msg, reply_markup=InlineKeyboardMarkup(keyboard))
         except Exception as e:
             logger.error(f"处理刷新回调失败: {e}", exc_info=True)
             await query.answer("❌ 操作失败", show_alert=True)
@@ -90,6 +146,7 @@ async def handle_group_message_callback(update: Update, context: ContextTypes.DE
         try:
             await query.answer()
         except Exception:
+            # Telegram API调用失败（如query已过期），忽略即可
             pass
 
         try:
@@ -105,201 +162,8 @@ async def handle_group_message_callback(update: Update, context: ContextTypes.DE
             await query.answer("请输入群组ID", show_alert=True)
         context.user_data["state"] = "ADDING_GROUP_CONFIG"
 
-    elif data == "groupmsg_set_message":
-        # 显示选择总群的界面
-        logger.info("处理设置消息回调")
-        # 先 answer，防止客户端转圈
-        try:
-            await query.answer()
-        except Exception:
-            pass
-
-        try:
-            configs = await db_operations.get_group_message_configs()
-            logger.info(f"获取到 {len(configs)} 个群组配置")
-
-            if not configs:
-                await query.answer("❌ 没有配置的总群，请先添加", show_alert=True)
-                return
-
-            keyboard = []
-            for config in configs:
-                chat_id = config.get("chat_id")
-                chat_title = config.get("chat_title", f"ID: {chat_id}")
-                logger.info(f"添加群组按钮: {chat_title} (ID: {chat_id})")
-                keyboard.append(
-                    [InlineKeyboardButton(chat_title, callback_data=f"groupmsg_select_{chat_id}")]
-                )
-
-            keyboard.append([InlineKeyboardButton("🔙 返回", callback_data="groupmsg_refresh")])
-
-            try:
-                logger.info("尝试编辑消息显示群组列表")
-                await query.edit_message_text(
-                    "📝 选择要设置消息的总群：", reply_markup=InlineKeyboardMarkup(keyboard)
-                )
-                logger.info("成功编辑消息显示群组列表")
-            except Exception as e:
-                logger.error(f"编辑消息失败: {e}", exc_info=True)
-                # 如果编辑失败，尝试发送新消息
-                try:
-                    logger.info("尝试发送新消息显示群组列表")
-                    await safe_query_reply_text(
-                        query,
-                        "📝 选择要设置消息的总群：",
-                        reply_markup=InlineKeyboardMarkup(keyboard),
-                    )
-                    logger.info("成功发送新消息显示群组列表")
-                except Exception as e2:
-                    logger.error(f"发送消息失败: {e2}", exc_info=True)
-                    await query.answer("❌ 操作失败，请重试", show_alert=True)
-        except Exception as e:
-            logger.error(f"处理设置消息失败: {e}", exc_info=True)
-            try:
-                await query.answer(f"❌ 操作失败: {str(e)[:50]}", show_alert=True)
-            except Exception:
-                pass
-
-    elif data.startswith("groupmsg_select_"):
-        logger.info(f"处理群组选择: {data}")
-        # 先给用户一个反馈，表示正在处理
-        # 注意：如果之前已经 answer 过，这里可能会失败，但不影响后续处理
-        try:
-            await query.answer("正在加载...", show_alert=False)
-        except Exception as e:
-            logger.debug(f"answer 失败（可能已 answer 过）: {e}")
-
-        try:
-            # 解析群组ID
-            chat_id_str = data.split("_")[-1]
-            logger.info(f"解析群组ID: {chat_id_str}")
-            chat_id = int(chat_id_str)
-
-            # 获取配置
-            logger.info(f"查询群组配置: {chat_id}")
-            config = await db_operations.get_group_message_config_by_chat_id(chat_id)
-
-            if not config:
-                logger.warning(f"群组配置不存在: {chat_id}")
-                await query.answer("❌ 配置不存在", show_alert=True)
-                return
-
-            chat_title = config.get("chat_title", f"ID: {chat_id}")
-            logger.info(f"找到群组配置: {chat_title} (ID: {chat_id})")
-
-            # 检查各消息类型是否已设置
-            has_start_work = bool(config.get("start_work_message"))
-            has_end_work = bool(config.get("end_work_message"))
-            has_welcome = bool(config.get("welcome_message"))
-
-            # 构建按钮文本，显示是否已设置
-            start_text = "🌅 设置开工信息"
-            if has_start_work:
-                start_text += " ✅"
-
-            end_text = "🌙 设置收工信息"
-            if has_end_work:
-                end_text += " ✅"
-
-            welcome_text = "👋 设置欢迎信息"
-            if has_welcome:
-                welcome_text += " ✅"
-
-            keyboard = [
-                [InlineKeyboardButton(start_text, callback_data=f"groupmsg_set_start_{chat_id}")],
-                [InlineKeyboardButton(end_text, callback_data=f"groupmsg_set_end_{chat_id}")],
-                [
-                    InlineKeyboardButton(
-                        welcome_text, callback_data=f"groupmsg_set_welcome_{chat_id}"
-                    )
-                ],
-                [
-                    InlineKeyboardButton(
-                        "👁️ 查看所有消息内容", callback_data=f"groupmsg_view_all_{chat_id}"
-                    )
-                ],
-                [InlineKeyboardButton("🔙 返回", callback_data="groupmsg_set_message")],
-            ]
-
-            # 构建消息文本，显示设置状态和内容预览
-            message_text = (
-                f"📝 设置消息内容\n\n"
-                f"总群: {chat_title}\n"
-                f"群组ID: {chat_id}\n\n"
-                f"消息设置状态：\n"
-                f"  🌅 开工信息: {'✅ 已设置' if has_start_work else '❌ 未设置'}\n"
-                f"  🌙 收工信息: {'✅ 已设置' if has_end_work else '❌ 未设置'}\n"
-                f"  👋 欢迎信息: {'✅ 已设置' if has_welcome else '❌ 未设置'}\n\n"
-            )
-
-            # 添加内容预览（如果有）
-            if has_start_work or has_end_work or has_welcome:
-                message_text += "📋 内容预览：\n"
-                if has_start_work:
-                    start_preview = config.get("start_work_message", "")[:100]
-                    if len(config.get("start_work_message", "")) > 100:
-                        start_preview += "..."
-                    message_text += f"  🌅 开工: {start_preview}\n"
-                if has_end_work:
-                    end_preview = config.get("end_work_message", "")[:100]
-                    if len(config.get("end_work_message", "")) > 100:
-                        end_preview += "..."
-                    message_text += f"  🌙 收工: {end_preview}\n"
-                if has_welcome:
-                    welcome_preview = config.get("welcome_message", "")[:100]
-                    if len(config.get("welcome_message", "")) > 100:
-                        welcome_preview += "..."
-                    message_text += f"  👋 欢迎: {welcome_preview}\n"
-                message_text += "\n"
-
-            message_text += "请选择要设置的消息类型："
-
-            # 尝试编辑消息
-            edit_success = False
-            try:
-                logger.info(f"尝试编辑消息: {chat_id}")
-                await query.edit_message_text(
-                    message_text, reply_markup=InlineKeyboardMarkup(keyboard)
-                )
-                logger.info(f"成功编辑消息: {chat_id}")
-                edit_success = True
-            except Exception as e:
-                logger.error(f"编辑消息失败: {e}", exc_info=True)
-                edit_success = False
-
-            # 如果编辑失败，尝试发送新消息
-            if not edit_success:
-                try:
-                    logger.info(f"尝试发送新消息: {chat_id}")
-                    await safe_query_reply_text(
-                        query, message_text, reply_markup=InlineKeyboardMarkup(keyboard)
-                    )
-                    logger.info(f"成功发送新消息: {chat_id}")
-                except Exception as e2:
-                    logger.error(f"发送消息失败: {e2}", exc_info=True)
-                    # 确保用户看到错误提示
-                    try:
-                        error_msg = f"❌ 操作失败: {str(e2)[:30]}"
-                        await query.answer(error_msg, show_alert=True)
-                    except Exception:
-                        pass
-        except (ValueError, IndexError) as e:
-            logger.error(f"解析群组ID失败: {data}, 错误: {e}", exc_info=True)
-            try:
-                await query.answer("❌ 无效的群组ID", show_alert=True)
-            except Exception:
-                pass
-        except Exception as e:
-            logger.error(f"处理群组选择失败: {data}, 错误: {e}", exc_info=True)
-            try:
-                error_msg = f"❌ 操作失败: {str(e)[:50]}"
-                await query.answer(error_msg, show_alert=True)
-            except Exception:
-                pass
-
-    elif data.startswith("groupmsg_view_all_"):
-        # 查看所有消息内容
-        logger.info(f"查看所有消息内容: {data}")
+    elif data.startswith("groupmsg_toggle_"):
+        # 切换群组启用/禁用状态
         try:
             await query.answer()
         except Exception:
@@ -307,78 +171,48 @@ async def handle_group_message_callback(update: Update, context: ContextTypes.DE
 
         try:
             chat_id = int(data.split("_")[-1])
-            config = await db_operations.get_group_message_config_by_chat_id(chat_id)
+            config = await get_group_message_config_by_chat_id_for_callback(chat_id)
 
             if not config:
                 await query.answer("❌ 配置不存在", show_alert=True)
                 return
 
-            chat_title = config.get("chat_title", f"ID: {chat_id}")
+            # 切换状态
+            current_status = config.get("is_active", 0)
+            new_status = 0 if current_status else 1
 
-            # 构建完整消息内容
-            msg = f"📋 所有消息内容\n\n"
-            msg += f"总群: {chat_title}\n"
-            msg += f"群组ID: {chat_id}\n\n"
-            msg += "=" * 40 + "\n\n"
+            import db_operations
 
-            # 开工信息
-            start_message = config.get("start_work_message")
-            if start_message:
-                msg += "🌅 开工信息：\n"
-                msg += f"{start_message}\n\n"
-                # 检查是否有多个版本
-                if "⸻" in start_message:
-                    versions = [v.strip() for v in start_message.split("⸻") if v.strip()]
-                    msg += f"💡 检测到 {len(versions)} 个版本，将自动轮播\n\n"
+            success = await db_operations.save_group_message_config(
+                chat_id=chat_id, is_active=new_status
+            )
+
+            if success:
+                status_text = "已启用" if new_status else "已禁用"
+                try:
+                    await query.answer(f"✅ {status_text}")
+                except Exception:
+                    pass  # Query 可能已过期，忽略错误
+
+                # 刷新界面 - 使用辅助函数避免递归调用
+                try:
+                    configs = await get_group_message_configs_for_callback()
+                    await _refresh_group_message_list(query, configs)
+                except Exception as e:
+                    logger.error(f"刷新界面失败: {e}", exc_info=True)
             else:
-                msg += "🌅 开工信息：❌ 未设置\n\n"
-
-            msg += "=" * 40 + "\n\n"
-
-            # 收工信息
-            end_message = config.get("end_work_message")
-            if end_message:
-                msg += "🌙 收工信息：\n"
-                msg += f"{end_message}\n\n"
-                # 检查是否有多个版本
-                if "⸻" in end_message:
-                    versions = [v.strip() for v in end_message.split("⸻") if v.strip()]
-                    msg += f"💡 检测到 {len(versions)} 个版本，将自动轮播\n\n"
-            else:
-                msg += "🌙 收工信息：❌ 未设置\n\n"
-
-            msg += "=" * 40 + "\n\n"
-
-            # 欢迎信息
-            welcome_message = config.get("welcome_message")
-            if welcome_message:
-                msg += "👋 欢迎信息：\n"
-                msg += f"{welcome_message}\n\n"
-                # 检查是否有多个版本
-                if "⸻" in welcome_message:
-                    versions = [v.strip() for v in welcome_message.split("⸻") if v.strip()]
-                    msg += f"💡 检测到 {len(versions)} 个版本，将自动轮播\n\n"
-            else:
-                msg += "👋 欢迎信息：❌ 未设置\n\n"
-
-            keyboard = [
-                [InlineKeyboardButton("🔙 返回", callback_data=f"groupmsg_select_{chat_id}")]
-            ]
-
-            try:
-                await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
-            except Exception as e:
-                logger.error(f"编辑消息失败: {e}", exc_info=True)
-                await safe_query_reply_text(query, msg, reply_markup=InlineKeyboardMarkup(keyboard))
+                try:
+                    await query.answer("❌ 更新失败", show_alert=True)
+                except Exception:
+                    pass
+        except (ValueError, IndexError):
+            await query.answer("❌ 无效的群组ID", show_alert=True)
         except Exception as e:
-            logger.error(f"查看消息内容失败: {e}", exc_info=True)
-            try:
-                await query.answer("❌ 查看失败", show_alert=True)
-            except Exception:
-                pass
+            logger.error(f"切换群组状态失败: {e}", exc_info=True)
+            await query.answer("❌ 操作失败", show_alert=True)
 
-    elif data.startswith("batch_set_select_"):
-        # 批量设置：选择群组
+    elif data.startswith("groupmsg_set_links_"):
+        # 设置群组链接（机器人链接和人工链接）
         try:
             await query.answer()
         except Exception:
@@ -386,305 +220,96 @@ async def handle_group_message_callback(update: Update, context: ContextTypes.DE
 
         try:
             chat_id = int(data.split("_")[-1])
-            config = await db_operations.get_group_message_config_by_chat_id(chat_id)
-            chat_title = config.get("chat_title", f"ID: {chat_id}") if config else f"ID: {chat_id}"
+            config = await get_group_message_config_by_chat_id_for_callback(chat_id)
 
-            context.user_data["batch_setting_chat_id"] = chat_id
-            context.user_data["batch_setting_step"] = "start_work"
-
-            message_text = (
-                f"📝 批量设置消息\n\n"
-                f"群组: {chat_title}\n"
-                f"群组ID: {chat_id}\n\n"
-                f"步骤 1/3: 设置开工信息\n\n"
-                f"请输入开工信息（支持多版本，用 ⸻ 分隔）：\n\n"
-                f"💡 示例：\n"
-                f"Good morning po! 😊 Our team is now online...\n"
-                f"⸻\n"
-                f"版本二内容\n"
-                f"⸻\n"
-                f"版本三内容\n\n"
-                f"输入 'skip' 跳过此步骤\n"
-                f"输入 'cancel' 取消"
-            )
-
-            try:
-                await query.edit_message_text(message_text)
-            except Exception:
-                await safe_query_reply_text(query, message_text)
-
-            context.user_data["state"] = "BATCH_SETTING_MESSAGES"
-        except Exception as e:
-            logger.error(f"批量设置选择群组失败: {e}", exc_info=True)
-            try:
-                await query.answer("❌ 选择失败", show_alert=True)
-            except Exception:
-                pass
-
-    elif data == "batch_set_cancel":
-        # 取消批量设置
-        try:
-            await query.answer("已取消")
-            await query.edit_message_text("❌ 已取消批量设置")
-        except Exception:
-            pass
-        context.user_data.pop("batch_setting_chat_id", None)
-        context.user_data.pop("batch_setting_step", None)
-        context.user_data.pop("state", None)
-
-    elif data.startswith("groupmsg_set_start_"):
-        try:
-            chat_id = int(data.split("_")[-1])
-            context.user_data["setting_message_chat_id"] = chat_id
-            context.user_data["setting_message_type"] = "start_work"
-
-            # 获取当前已设置的消息（如果有）
-            config = await db_operations.get_group_message_config_by_chat_id(chat_id)
-            current_message = config.get("start_work_message") if config else None
-
-            try:
-                if current_message:
-                    # 如果已有消息，显示当前内容并提供编辑选项
-                    preview = (
-                        current_message[:200] + "..."
-                        if len(current_message) > 200
-                        else current_message
-                    )
-                    await safe_query_reply_text(
-                        query,
-                        f"📝 设置开工信息\n\n"
-                        f"当前内容：\n{preview}\n\n"
-                        f"💡 提示：\n"
-                        f"- 输入新内容将替换当前内容\n"
-                        f"- 使用 ⸻ 分隔符可以设置多个版本（自动轮播）\n"
-                        f"- 输入 'cancel' 取消\n"
-                        f"- 输入 'keep' 保持当前内容不变",
-                    )
-                else:
-                    # 如果没有消息，提示输入
-                    await safe_query_reply_text(
-                        query,
-                        "📝 设置开工信息\n\n"
-                        "💡 提示：\n"
-                        "- 使用 ⸻ 分隔符可以设置多个版本（自动轮播）\n"
-                        "例如：\n"
-                        "版本1内容\n"
-                        "⸻\n"
-                        "版本2内容\n"
-                        "⸻\n"
-                        "版本3内容\n\n"
-                        "输入 'cancel' 取消",
-                    )
-            except Exception as e:
-                logger.error(f"发送开工信息提示失败: {e}", exc_info=True)
-                await query.answer("请输入开工信息", show_alert=True)
-            context.user_data["state"] = "SETTING_GROUP_MESSAGE"
-            await query.answer()
-        except (ValueError, IndexError):
-            await query.answer("❌ 无效的群组ID", show_alert=True)
-
-    elif data.startswith("groupmsg_set_end_"):
-        try:
-            chat_id = int(data.split("_")[-1])
-            context.user_data["setting_message_chat_id"] = chat_id
-            context.user_data["setting_message_type"] = "end_work"
-
-            # 获取当前已设置的消息（如果有）
-            config = await db_operations.get_group_message_config_by_chat_id(chat_id)
-            current_message = config.get("end_work_message") if config else None
-
-            try:
-                if current_message:
-                    # 如果已有消息，显示当前内容并提供编辑选项
-                    preview = (
-                        current_message[:200] + "..."
-                        if len(current_message) > 200
-                        else current_message
-                    )
-                    await safe_query_reply_text(
-                        query,
-                        f"📝 设置收工信息\n\n"
-                        f"当前内容：\n{preview}\n\n"
-                        f"💡 提示：\n"
-                        f"- 输入新内容将替换当前内容\n"
-                        f"- 使用 ⸻ 分隔符可以设置多个版本（自动轮播）\n"
-                        f"- 输入 'cancel' 取消\n"
-                        f"- 输入 'keep' 保持当前内容不变",
-                    )
-                else:
-                    # 如果没有消息，提示输入
-                    await safe_query_reply_text(
-                        query,
-                        "📝 设置收工信息\n\n"
-                        "💡 提示：\n"
-                        "- 使用 ⸻ 分隔符可以设置多个版本（自动轮播）\n"
-                        "例如：\n"
-                        "版本1内容\n"
-                        "⸻\n"
-                        "版本2内容\n"
-                        "⸻\n"
-                        "版本3内容\n\n"
-                        "输入 'cancel' 取消",
-                    )
-            except Exception as e:
-                logger.error(f"发送收工信息提示失败: {e}", exc_info=True)
-                await query.answer("请输入收工信息", show_alert=True)
-            context.user_data["state"] = "SETTING_GROUP_MESSAGE"
-            await query.answer()
-        except (ValueError, IndexError):
-            await query.answer("❌ 无效的群组ID", show_alert=True)
-
-    elif data.startswith("groupmsg_set_welcome_"):
-        try:
-            chat_id = int(data.split("_")[-1])
-            context.user_data["setting_message_chat_id"] = chat_id
-            context.user_data["setting_message_type"] = "welcome"
-
-            # 获取当前已设置的消息（如果有）
-            config = await db_operations.get_group_message_config_by_chat_id(chat_id)
-            current_message = config.get("welcome_message") if config else None
-
-            try:
-                if current_message:
-                    # 如果已有消息，显示当前内容并提供编辑选项
-                    preview = (
-                        current_message[:200] + "..."
-                        if len(current_message) > 200
-                        else current_message
-                    )
-                    await safe_query_reply_text(
-                        query,
-                        f"📝 设置欢迎信息\n\n"
-                        f"当前内容：\n{preview}\n\n"
-                        f"💡 提示：\n"
-                        f"- 输入新内容将替换当前内容\n"
-                        f"- 使用 ⸻ 分隔符可以设置多个版本（自动轮播）\n"
-                        f"- 支持变量：{{username}} 和 {{chat_title}}\n"
-                        f"- 输入 'cancel' 取消\n"
-                        f"- 输入 'keep' 保持当前内容不变",
-                    )
-                else:
-                    # 如果没有消息，提示输入
-                    await safe_query_reply_text(
-                        query,
-                        "📝 设置欢迎信息\n\n"
-                        "💡 提示：\n"
-                        "- 使用 ⸻ 分隔符可以设置多个版本（自动轮播）\n"
-                        "- 支持变量：{username} 和 {chat_title}\n"
-                        "例如：\n"
-                        "版本1内容 {username}\n"
-                        "⸻\n"
-                        "版本2内容 {username}\n"
-                        "⸻\n"
-                        "版本3内容 {username}\n\n"
-                        "输入 'cancel' 取消",
-                    )
-            except Exception as e:
-                logger.error(f"发送欢迎信息提示失败: {e}", exc_info=True)
-                await query.answer("请输入欢迎信息", show_alert=True)
-            context.user_data["state"] = "SETTING_GROUP_MESSAGE"
-            await query.answer()
-        except (ValueError, IndexError):
-            await query.answer("❌ 无效的群组ID", show_alert=True)
-
-    elif data == "announcement_refresh":
-        from handlers.group_message_handlers import manage_announcements
-
-        await manage_announcements(update, context)
-
-    elif data == "announcement_add":
-        try:
-            await safe_query_reply_text(query, "请输入公告内容：\n" "输入 'cancel' 取消")
-        except Exception as e:
-            logger.error(f"发送公告提示失败: {e}", exc_info=True)
-            await query.answer("请输入公告内容", show_alert=True)
-        context.user_data["state"] = "ADDING_ANNOUNCEMENT"
-        await query.answer()
-
-    elif data == "announcement_list":
-        announcements = await db_operations.get_all_company_announcements()
-
-        if not announcements:
-            await query.answer("❌ 没有公告", show_alert=True)
-            return
-
-        msg = "📋 所有公告列表\n\n"
-        for ann in announcements:
-            ann_id = ann.get("id")
-            message = ann.get("message", "")
-            is_active = ann.get("is_active", 0)
-            status = "✅" if is_active else "❌"
-
-            msg += f"{status} [{ann_id}] {message}\n\n"
-
-        keyboard = []
-        for ann in announcements:
-            ann_id = ann.get("id")
-            is_active = ann.get("is_active", 0)
-            action = "禁用" if is_active else "启用"
-            keyboard.append(
-                [
-                    InlineKeyboardButton(
-                        f"{'✅' if is_active else '❌'} [{ann_id}] {action}",
-                        callback_data=f"announcement_toggle_{ann_id}",
-                    ),
-                    InlineKeyboardButton("🗑️ 删除", callback_data=f"announcement_delete_{ann_id}"),
-                ]
-            )
-
-        keyboard.append([InlineKeyboardButton("🔙 返回", callback_data="announcement_refresh")])
-
-        await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
-
-    elif data.startswith("announcement_toggle_"):
-        try:
-            ann_id = int(data.split("_")[-1])
-            ann = await db_operations.get_all_company_announcements()
-            current = next((a for a in ann if a.get("id") == ann_id), None)
-
-            if not current:
-                await query.answer("❌ 公告不存在", show_alert=True)
+            if not config:
+                await query.answer("❌ 配置不存在", show_alert=True)
                 return
 
-            new_status = 0 if current.get("is_active") else 1
-            success = await db_operations.toggle_company_announcement(ann_id, new_status)
+            # 显示设置链接菜单
+            chat_title = config.get("chat_title", f"ID: {chat_id}")
+            current_bot_links = config.get("bot_links", "") or "未设置"
+            current_worker_links = config.get("worker_links", "") or "未设置"
 
-            if success:
-                await query.answer("✅ 状态已更新")
-                # 刷新列表
-                await handle_group_message_callback(update, context)
-            else:
-                await query.answer("❌ 更新失败", show_alert=True)
+            msg = f"🔗 设置链接 - {chat_title}\n\n"
+            msg += f"当前机器人链接:\n{current_bot_links}\n\n"
+            msg += f"当前人工链接:\n{current_worker_links}\n\n"
+            msg += "请选择要设置的链接类型："
+
+            keyboard = [
+                [
+                    InlineKeyboardButton(
+                        "🤖 设置机器人链接", callback_data=f"groupmsg_set_bot_links_{chat_id}"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        "👤 设置人工链接", callback_data=f"groupmsg_set_worker_links_{chat_id}"
+                    )
+                ],
+                [InlineKeyboardButton("🔙 返回", callback_data="groupmsg_refresh")],
+            ]
+
+            await safe_edit_message_text(query, msg, reply_markup=InlineKeyboardMarkup(keyboard))
         except (ValueError, IndexError):
-            await query.answer("❌ 无效的公告ID", show_alert=True)
+            await query.answer("❌ 无效的群组ID", show_alert=True)
+        except Exception as e:
+            logger.error(f"显示设置链接菜单失败: {e}", exc_info=True)
+            await query.answer("❌ 操作失败", show_alert=True)
 
-    elif data.startswith("announcement_delete_"):
+    elif data.startswith("groupmsg_set_bot_links_"):
+        # 设置机器人链接
         try:
-            ann_id = int(data.split("_")[-1])
-            success = await db_operations.delete_company_announcement(ann_id)
+            await query.answer()
+        except Exception:
+            pass
 
-            if success:
-                await query.answer("✅ 公告已删除")
-                # 刷新列表
-                await handle_group_message_callback(update, context)
-            else:
-                await query.answer("❌ 删除失败", show_alert=True)
-        except (ValueError, IndexError):
-            await query.answer("❌ 无效的公告ID", show_alert=True)
-
-    elif data == "announcement_set_interval":
         try:
+            chat_id = int(data.split("_")[-1])
+            from constants import USER_STATES
+
+            context.user_data["state"] = f"{USER_STATES['SETTING_BOT_LINKS']}_{chat_id}"
+            context.user_data["setting_chat_id"] = chat_id
+
             await safe_query_reply_text(
                 query,
-                "请输入发送间隔（小时）：\n"
-                "格式: 数字（如：3 表示每3小时发送一次）\n"
+                "请输入机器人链接（多个链接用换行符分隔）：\n"
+                "格式: https://t.me/...\n"
+                "输入 'clear' 清空链接\n"
                 "输入 'cancel' 取消",
             )
+        except (ValueError, IndexError):
+            await query.answer("❌ 无效的群组ID", show_alert=True)
         except Exception as e:
-            logger.error(f"发送间隔提示失败: {e}", exc_info=True)
-            await query.answer("请输入发送间隔", show_alert=True)
-        context.user_data["state"] = "SETTING_ANNOUNCEMENT_INTERVAL"
-        await query.answer()
+            logger.error(f"设置机器人链接失败: {e}", exc_info=True)
+            await query.answer("❌ 操作失败", show_alert=True)
+
+    elif data.startswith("groupmsg_set_worker_links_"):
+        # 设置人工链接
+        try:
+            await query.answer()
+        except Exception:
+            pass
+
+        try:
+            chat_id = int(data.split("_")[-1])
+            from constants import USER_STATES
+
+            context.user_data["state"] = f"{USER_STATES['SETTING_WORKER_LINKS']}_{chat_id}"
+            context.user_data["setting_chat_id"] = chat_id
+
+            await safe_query_reply_text(
+                query,
+                "请输入人工链接（多个链接用换行符分隔）：\n"
+                "格式: https://t.me/...\n"
+                "输入 'clear' 清空链接\n"
+                "输入 'cancel' 取消",
+            )
+        except (ValueError, IndexError):
+            await query.answer("❌ 无效的群组ID", show_alert=True)
+        except Exception as e:
+            logger.error(f"设置人工链接失败: {e}", exc_info=True)
+            await query.answer("❌ 操作失败", show_alert=True)
 
     # 防诈骗语录回调
     elif data == "antifraud_refresh":
@@ -702,7 +327,7 @@ async def handle_group_message_callback(update: Update, context: ContextTypes.DE
         await query.answer()
 
     elif data == "antifraud_list":
-        messages = await db_operations.get_all_anti_fraud_messages()
+        messages = await get_all_anti_fraud_messages_for_callback()
 
         if not messages:
             await query.answer("❌ 没有防诈骗语录", show_alert=True)
@@ -737,35 +362,72 @@ async def handle_group_message_callback(update: Update, context: ContextTypes.DE
     elif data.startswith("antifraud_toggle_"):
         try:
             msg_id = int(data.split("_")[-1])
-            messages = await db_operations.get_all_anti_fraud_messages()
+            messages = await get_all_anti_fraud_messages_for_callback()
             current = next((m for m in messages if m.get("id") == msg_id), None)
 
             if not current:
                 await query.answer("❌ 语录不存在", show_alert=True)
                 return
 
-            success = await db_operations.toggle_anti_fraud_message(msg_id)
+            success = await toggle_anti_fraud_message_for_callback(msg_id)
 
             if success:
-                await query.answer("✅ 状态已更新")
-                # 刷新列表
-                await handle_group_message_callback(update, context)
+                try:
+                    await query.answer("✅ 状态已更新")
+                except Exception:
+                    pass
+                # 刷新列表 - 直接调用管理函数避免递归
+                try:
+                    from handlers.group_message_handlers import manage_anti_fraud_messages
+
+                    if query.message:
+                        from telegram import Update as TelegramUpdate
+
+                        refresh_update = TelegramUpdate(
+                            update_id=update.update_id, callback_query=None, message=query.message
+                        )
+                        await manage_anti_fraud_messages(refresh_update, context)
+                except Exception as e:
+                    logger.error(f"刷新界面失败: {e}", exc_info=True)
             else:
-                await query.answer("❌ 更新失败", show_alert=True)
+                try:
+                    await query.answer("❌ 更新失败", show_alert=True)
+                except Exception:
+                    pass
         except (ValueError, IndexError):
-            await query.answer("❌ 无效的语录ID", show_alert=True)
+            try:
+                await query.answer("❌ 无效的语录ID", show_alert=True)
+            except Exception:
+                pass
 
     elif data.startswith("antifraud_delete_"):
         try:
             msg_id = int(data.split("_")[-1])
-            success = await db_operations.delete_anti_fraud_message(msg_id)
+            success = await delete_anti_fraud_message_for_callback(msg_id)
 
             if success:
-                await query.answer("✅ 语录已删除")
-                # 刷新列表
-                await handle_group_message_callback(update, context)
+                try:
+                    await query.answer("✅ 语录已删除")
+                except Exception:
+                    pass
+                # 刷新列表 - 直接调用管理函数避免递归
+                try:
+                    from handlers.group_message_handlers import manage_anti_fraud_messages
+
+                    if query.message:
+                        from telegram import Update as TelegramUpdate
+
+                        refresh_update = TelegramUpdate(
+                            update_id=update.update_id, callback_query=None, message=query.message
+                        )
+                        await manage_anti_fraud_messages(refresh_update, context)
+                except Exception as e:
+                    logger.error(f"刷新界面失败: {e}", exc_info=True)
             else:
-                await query.answer("❌ 删除失败", show_alert=True)
+                try:
+                    await query.answer("❌ 删除失败", show_alert=True)
+                except Exception:
+                    pass
         except (ValueError, IndexError):
             await query.answer("❌ 无效的语录ID", show_alert=True)
 
@@ -787,7 +449,7 @@ async def handle_group_message_callback(update: Update, context: ContextTypes.DE
         await query.answer()
 
     elif data == "promotion_list":
-        messages = await db_operations.get_all_promotion_messages()
+        messages = await get_all_promotion_messages_for_callback()
 
         if not messages:
             await query.answer("❌ No promotion messages", show_alert=True)
@@ -827,35 +489,72 @@ async def handle_group_message_callback(update: Update, context: ContextTypes.DE
     elif data.startswith("promotion_toggle_"):
         try:
             msg_id = int(data.split("_")[-1])
-            messages = await db_operations.get_all_promotion_messages()
+            messages = await get_all_promotion_messages_for_callback()
             current = next((m for m in messages if m.get("id") == msg_id), None)
 
             if not current:
                 await query.answer("❌ Message not found", show_alert=True)
                 return
 
-            success = await db_operations.toggle_promotion_message(msg_id)
+            success = await toggle_promotion_message_for_callback(msg_id)
 
             if success:
-                await query.answer("✅ Status updated")
-                # 刷新列表
-                await handle_group_message_callback(update, context)
+                try:
+                    await query.answer("✅ Status updated")
+                except Exception:
+                    pass
+                # 刷新列表 - 直接调用管理函数避免递归
+                try:
+                    from handlers.group_message_handlers import manage_promotion_messages
+
+                    if query.message:
+                        from telegram import Update as TelegramUpdate
+
+                        refresh_update = TelegramUpdate(
+                            update_id=update.update_id, callback_query=None, message=query.message
+                        )
+                        await manage_promotion_messages(refresh_update, context)
+                except Exception as e:
+                    logger.error(f"刷新界面失败: {e}", exc_info=True)
             else:
-                await query.answer("❌ Update failed", show_alert=True)
+                try:
+                    await query.answer("❌ Update failed", show_alert=True)
+                except Exception:
+                    pass
         except (ValueError, IndexError):
-            await query.answer("❌ Invalid message ID", show_alert=True)
+            try:
+                await query.answer("❌ Invalid message ID", show_alert=True)
+            except Exception:
+                pass
 
     elif data.startswith("promotion_delete_"):
         try:
             msg_id = int(data.split("_")[-1])
-            success = await db_operations.delete_promotion_message(msg_id)
+            success = await delete_promotion_message_for_callback(msg_id)
 
             if success:
-                await query.answer("✅ Message deleted")
-                # 刷新列表
-                await handle_group_message_callback(update, context)
+                try:
+                    await query.answer("✅ Message deleted")
+                except Exception:
+                    pass
+                # 刷新列表 - 直接调用管理函数避免递归
+                try:
+                    from handlers.group_message_handlers import manage_promotion_messages
+
+                    if query.message:
+                        from telegram import Update as TelegramUpdate
+
+                        refresh_update = TelegramUpdate(
+                            update_id=update.update_id, callback_query=None, message=query.message
+                        )
+                        await manage_promotion_messages(refresh_update, context)
+                except Exception as e:
+                    logger.error(f"刷新界面失败: {e}", exc_info=True)
             else:
-                await query.answer("❌ Delete failed", show_alert=True)
+                try:
+                    await query.answer("❌ Delete failed", show_alert=True)
+                except Exception:
+                    pass
         except (ValueError, IndexError):
             await query.answer("❌ Invalid message ID", show_alert=True)
 
@@ -872,79 +571,10 @@ async def handle_group_message_callback(update: Update, context: ContextTypes.DE
             logger.error(f"Failed to send test promotion messages: {e}", exc_info=True)
             await query.answer(f"❌ Send failed: {str(e)[:50]}", show_alert=True)
 
-    elif data == "test_announcement":
-        try:
-            await query.answer("🔄 正在发送公司公告...")
-            import random
-
-            from utils.schedule_executor import (
-                format_admin_mentions_from_group,
-                select_rotated_message,
-            )
-
-            bot = context.bot
-
-            # 获取激活的公告列表
-            announcements = await db_operations.get_company_announcements()
-
-            if not announcements:
-                await query.edit_message_text("❌ 没有激活的公告")
-                return
-
-            # 随机选择一条公告
-            selected_announcement = random.choice(announcements)
-            message = selected_announcement.get("message")
-
-            if not message:
-                await query.edit_message_text("❌ 选中的公告消息为空")
-                return
-
-            # 处理多版本消息轮播
-            rotated_message = select_rotated_message(message)
-
-            # 获取所有配置的总群
-            configs = await db_operations.get_group_message_configs()
-
-            if not configs:
-                await query.edit_message_text("❌ 没有配置的总群")
-                return
-
-            # 获取管理员@用户名（从指定群组获取）
-            admin_mentions = await format_admin_mentions_from_group(bot)
-
-            # 组合消息
-            final_message = rotated_message
-            if admin_mentions:
-                final_message = f"{rotated_message}\n\n{admin_mentions}"
-
-            success_count = 0
-            fail_count = 0
-
-            for config in configs:
-                chat_id = config.get("chat_id")
-                if not chat_id:
-                    continue
-                try:
-                    await bot.send_message(chat_id=chat_id, text=final_message, parse_mode="HTML")
-                    success_count += 1
-                except Exception as e:
-                    fail_count += 1
-                    logger.error(f"发送公司公告到群组 {chat_id} 失败: {e}", exc_info=True)
-
-            await query.edit_message_text(
-                f"✅ 公司公告已发送\n成功: {success_count}, 失败: {fail_count}"
-            )
-        except Exception as e:
-            logger.error(f"测试发送公司公告失败: {e}", exc_info=True)
-            await query.answer(f"❌ 发送失败: {str(e)[:50]}", show_alert=True)
-
     elif data == "test_all":
         try:
-            await query.answer("🔄 Sending all types of messages...")
-            from utils.schedule_executor import (
-                send_company_promotion_messages,
-                send_random_announcements,
-            )
+            await query.answer("🔄 Sending promotion messages...")
+            from utils.schedule_executor import send_company_promotion_messages
 
             bot = context.bot
 
@@ -954,21 +584,122 @@ async def handle_group_message_callback(update: Update, context: ContextTypes.DE
             except Exception as e:
                 logger.error(f"Failed to send promotion messages: {e}", exc_info=True)
 
-            # 等待1秒
-            import asyncio
-
-            await asyncio.sleep(1)
-
-            # 发送公司公告
-            try:
-                await send_random_announcements(bot)
-            except Exception as e:
-                logger.error(f"发送公司公告失败: {e}", exc_info=True)
-
-            await query.edit_message_text("✅ All types of messages sent to all groups")
+            await safe_edit_message_text(query, "✅ Promotion messages sent to all groups")
         except Exception as e:
             logger.error(f"Failed to send all test messages: {e}", exc_info=True)
             await query.answer(f"❌ 发送失败: {str(e)[:50]}", show_alert=True)
 
     elif data == "test_cancel":
-        await query.edit_message_text("❌ 已取消测试")
+        await safe_edit_message_text(query, "❌ 已取消测试")
+
+    elif data.startswith("test_msg_"):
+        # 处理测试消息发送回调
+        try:
+            await query.answer()
+        except Exception:
+            pass
+
+        try:
+            import random
+
+            import db_operations
+            from utils.schedule_executor import (
+                _combine_message_with_anti_fraud,
+                _send_group_message,
+                select_rotated_message,
+            )
+
+            chat = query.message.chat
+            if chat.type == "private":
+                await query.answer("❌ 此功能只能在群组中使用", show_alert=True)
+                return
+
+            msg_type_map = {
+                "test_msg_start_work": "start_work",
+                "test_msg_end_work": "end_work",
+                "test_msg_welcome": "welcome",
+                "test_msg_promotion": "promotion",
+            }
+
+            msg_type = msg_type_map.get(data)
+            if not msg_type:
+                await query.answer("❌ 无效的消息类型", show_alert=True)
+                return
+
+            # 获取群组配置（用于获取链接，但不检查是否开启）
+            config = await db_operations.get_group_message_config_by_chat_id(chat.id)
+            bot_links = config.get("bot_links") if config else None
+            worker_links = config.get("worker_links") if config else None
+
+            # 获取激活的防诈骗语录
+            anti_fraud_messages = await db_operations.get_active_anti_fraud_messages()
+
+            # 根据消息类型选择消息内容
+            main_message = ""
+            if msg_type == "start_work":
+                # 开工消息
+                start_work_messages = await db_operations.get_active_start_work_messages()
+                if not start_work_messages:
+                    await query.answer("❌ 没有激活的开工消息", show_alert=True)
+                    return
+                message = random.choice(start_work_messages)
+                main_message = select_rotated_message(message)
+
+            elif msg_type == "end_work":
+                # 收工消息
+                end_work_messages = await db_operations.get_active_end_work_messages()
+                if not end_work_messages:
+                    await query.answer("❌ 没有激活的收工消息", show_alert=True)
+                    return
+                message = random.choice(end_work_messages)
+                main_message = select_rotated_message(message)
+
+            elif msg_type == "welcome":
+                # 欢迎消息
+                welcome_message = config.get("welcome_message")
+                if not welcome_message:
+                    await query.answer("❌ 当前群组未配置欢迎消息", show_alert=True)
+                    return
+                rotated_message = select_rotated_message(welcome_message)
+                # 替换变量
+                username = (
+                    update.effective_user.username or update.effective_user.first_name or "测试用户"
+                )
+                chat_title = chat.title or "群组"
+                main_message = rotated_message.replace("{username}", username)
+                main_message = main_message.replace("{chat_title}", chat_title)
+
+            elif msg_type == "promotion":
+                # 宣传消息
+                promotion_messages = await db_operations.get_active_promotion_messages()
+                if not promotion_messages:
+                    await query.answer("❌ 没有激活的宣传消息", show_alert=True)
+                    return
+                valid_messages = [
+                    msg
+                    for msg in promotion_messages
+                    if msg.get("message") and msg.get("message").strip()
+                ]
+                if not valid_messages:
+                    await query.answer("❌ 没有有效的宣传消息", show_alert=True)
+                    return
+                selected_msg_dict = random.choice(valid_messages)
+                main_message = selected_msg_dict.get("message", "").strip()
+
+            if not main_message:
+                await query.answer("❌ 消息内容为空", show_alert=True)
+                return
+
+            # 组合消息：主消息 + 防诈骗语录
+            final_message = _combine_message_with_anti_fraud(main_message, anti_fraud_messages)
+
+            # 发送消息
+            bot = context.bot
+            if await _send_group_message(bot, chat.id, final_message, bot_links, worker_links):
+                await safe_edit_message_text(query, "✅ 测试消息已发送")
+                logger.info(f"测试消息已发送到群组 {chat.id} (类型: {msg_type})")
+            else:
+                await query.answer("❌ 发送失败，请检查日志", show_alert=True)
+        except Exception as e:
+            logger.error(f"发送测试消息失败: {e}", exc_info=True)
+            await query.answer(f"❌ 发送失败: {str(e)[:50]}", show_alert=True)
