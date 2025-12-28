@@ -117,33 +117,25 @@ def format_red_message(message: str) -> str:
     return f"⚠️ <b>{escaped_message}</b>"
 
 
-async def _send_group_message(
-    bot, chat_id: int, message: str, bot_links: str = None, worker_links: str = None
-) -> bool:
+async def _send_group_message(bot, chat_id: int, message: str) -> bool:
     """统一的群组消息发送辅助函数
-    机器人直接在群组中发送消息（不使用用户转发或回复）
+    机器人直接在群组中发送消息（不添加任何按钮）
 
     Args:
         bot: Telegram Bot 实例
         chat_id: 群组ID
         message: 消息内容
-        bot_links: 机器人链接
-        worker_links: 人工客服链接
 
     Returns:
         bool: 发送是否成功
     """
     try:
-        # 创建内联键盘
-        reply_markup = create_message_keyboard(bot_links, worker_links)
-
-        # 机器人直接在群组中发送消息（使用 bot.send_message 直接发送）
-        logger.info(f"机器人正在向群组 {chat_id} 发送消息（直接发送，非转发）")
+        # 机器人直接在群组中发送消息，不添加任何按钮
+        logger.info(f"机器人正在向群组 {chat_id} 发送消息（直接发送，无按钮）")
         await bot.send_message(
             chat_id=chat_id,
             text=message,
             parse_mode="HTML",
-            reply_markup=reply_markup,
         )
         logger.info(f"✅ 消息已成功发送到群组 {chat_id}")
         return True
