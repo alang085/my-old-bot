@@ -78,7 +78,7 @@ class GroupMessageService:
     @staticmethod
     async def setup_group_auto(chat_id: int, chat_title: str) -> Tuple[bool, Optional[str]]:
         """一键设置群组自动消息功能
-        自动从数据库读取语录并配置到群组
+        开启群组自动播报，定时播报会自动从数据库读取语录并随机选择
 
         Args:
             chat_id: 群组/频道ID
@@ -90,37 +90,23 @@ class GroupMessageService:
                 - error_message: 错误消息（如果失败）
         """
         try:
-            import random
-
-            # 从数据库读取激活的语录
-            start_work_messages = await db_operations.get_active_start_work_messages()
-            end_work_messages = await db_operations.get_active_end_work_messages()
-
-            # 随机选择一条开工消息和收工消息
-            start_work_message = random.choice(start_work_messages) if start_work_messages else ""
-            end_work_message = random.choice(end_work_messages) if end_work_messages else ""
-
             # 检查是否已存在配置
             existing_config = await db_operations.get_group_message_config_by_chat_id(chat_id)
 
             if existing_config:
-                # 更新现有配置，自动配置文案
+                # 更新现有配置，只开启播报（不保存语录，定时播报直接从数据库读取）
                 success = await db_operations.save_group_message_config(
                     chat_id=chat_id,
                     chat_title=chat_title,
-                    start_work_message=start_work_message,
-                    end_work_message=end_work_message,
                     is_active=1,
                 )
                 if not success:
                     return False, "❌ 更新配置失败"
             else:
-                # 创建新配置，自动配置文案
+                # 创建新配置，只开启播报（不保存语录，定时播报直接从数据库读取）
                 success = await db_operations.save_group_message_config(
                     chat_id=chat_id,
                     chat_title=chat_title,
-                    start_work_message=start_work_message,
-                    end_work_message=end_work_message,
                     is_active=1,
                 )
                 if not success:
