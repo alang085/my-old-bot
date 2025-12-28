@@ -118,9 +118,9 @@ class OrderCreateModel(BaseModel):
     chat_id: int
     date: str  # 格式：YYYY-MM-DD HH:MM:SS
     weekday_group: str
-    customer: Literal["A", "B"]
-    amount: float = Field(..., gt=0)
-    state: Literal["normal", "overdue", "breach", "end", "breach_end"] = "normal"
+    customer: str
+    amount: float
+    state: str = "normal"
 
     @field_validator("amount")
     @classmethod
@@ -150,7 +150,7 @@ class OrderCreateModel(BaseModel):
 class AmountModel(BaseModel):
     """金额验证模型"""
 
-    amount: float = Field(..., gt=0, description="金额，必须大于0")
+    amount: float
 
     @field_validator("amount")
     @classmethod
@@ -171,7 +171,7 @@ class AmountModel(BaseModel):
 class DateModel(BaseModel):
     """日期验证模型"""
 
-    date: str = Field(..., description="日期字符串，格式：YYYY-MM-DD 或 YYYY-MM-DD HH:MM:SS")
+    date: str
 
     @field_validator("date")
     @classmethod
