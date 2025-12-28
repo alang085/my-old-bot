@@ -614,8 +614,6 @@ async def send_start_work_messages(bot):
 
         for config in configs:
             chat_id = config.get("chat_id")
-            bot_links = config.get("bot_links")
-            worker_links = config.get("worker_links")
 
             if not chat_id:
                 continue
@@ -626,8 +624,8 @@ async def send_start_work_messages(bot):
                     rotated_message, anti_fraud_messages
                 )
 
-                # 发送消息
-                if await _send_group_message(bot, chat_id, final_message, bot_links, worker_links):
+                # 发送消息（直接从数据库读取，不添加按钮）
+                if await _send_group_message(bot, chat_id, final_message):
                     success_count += 1
                     logger.info(f"开工信息已发送到群组 {chat_id} (随机选择)")
                 else:
@@ -692,8 +690,6 @@ async def send_end_work_messages(bot):
 
         for config in configs:
             chat_id = config.get("chat_id")
-            bot_links = config.get("bot_links")
-            worker_links = config.get("worker_links")
 
             if not chat_id:
                 continue
@@ -704,8 +700,8 @@ async def send_end_work_messages(bot):
                     rotated_message, anti_fraud_messages
                 )
 
-                # 发送消息
-                if await _send_group_message(bot, chat_id, final_message, bot_links, worker_links):
+                # 发送消息（直接从数据库读取，不添加按钮）
+                if await _send_group_message(bot, chat_id, final_message):
                     success_count += 1
                     logger.info(f"收工信息已发送到群组 {chat_id} (随机选择)")
                 else:
