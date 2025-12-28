@@ -127,12 +127,7 @@ async def _send_test_message(
         select_rotated_message,
     )
 
-    # 获取群组配置（用于获取链接，但不检查是否开启）
-    config = await db_operations.get_group_message_config_by_chat_id(chat.id)
-    bot_links = config.get("bot_links") if config else None
-    worker_links = config.get("worker_links") if config else None
-
-    # 获取激活的防诈骗语录
+    # 直接从数据库获取激活的防诈骗语录
     anti_fraud_messages = await db_operations.get_active_anti_fraud_messages()
 
     # Select message content based on message type - 直接从数据库读取语录
@@ -156,7 +151,8 @@ async def _send_test_message(
         main_message = select_rotated_message(message)
 
     elif msg_type == "welcome":
-        # Welcome message - 从配置读取，如果没有则提示
+        # Welcome message - 从数据库读取（如果有配置的话）
+        config = await db_operations.get_group_message_config_by_chat_id(chat.id)
         if config and config.get("welcome_message"):
             welcome_message = config.get("welcome_message")
             rotated_message = select_rotated_message(welcome_message)
@@ -204,8 +200,8 @@ async def _send_test_message(
     # Combine message: main message + anti-fraud message
     final_message = _combine_message_with_anti_fraud(main_message, anti_fraud_messages)
 
-    # Send message
-    if await _send_group_message(context.bot, chat.id, final_message, bot_links, worker_links):
+    # 直接从数据库读取，直接发送消息（不添加任何按钮）
+    if await _send_group_message(context.bot, chat.id, final_message):
         await update.message.reply_text("✅ Test message sent")
         logger.info(f"Test message sent to group {chat.id} (type: {msg_type})")
     else:
