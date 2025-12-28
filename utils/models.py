@@ -6,7 +6,31 @@
 from datetime import date, datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+try:
+    from pydantic import BaseModel, Field, field_validator
+    PYDANTIC_AVAILABLE = True
+except ImportError:
+    PYDANTIC_AVAILABLE = False
+    # 简单的替代实现
+    class BaseModel:
+        def __init__(self, **kwargs):
+            for key, value in kwargs.items():
+                setattr(self, key, value)
+        
+        def to_dict(self):
+            return {k: v for k, v in self.__dict__.items() if not k.startswith('_')}
+        
+        @classmethod
+        def model_validate(cls, data):
+            return cls(**data)
+    
+    def Field(*args, **kwargs):
+        return None
+    
+    def field_validator(*args, **kwargs):
+        def decorator(func):
+            return func
+        return decorator
 
 # ========== 订单相关模型 ==========
 
@@ -111,14 +135,14 @@ class OrderCreateModel(BaseModel):
     def to_dict(self) -> dict:
         """转换为字典（用于数据库操作）"""
         return {
-            "order_id": self.order_id,
-            "group_id": self.group_id,
-            "chat_id": self.chat_id,
-            "date": self.date,
-            "weekday_group": self.weekday_group,  # 数据库字段名是 weekday_group
-            "customer": self.customer,
-            "amount": self.amount,
-            "state": self.state,
+            "order_id": getattr(self, 'order_id', ''),
+            "group_id": getattr(self, 'group_id', 'S01'),
+            "chat_id": getattr(self, 'chat_id', 0),
+            "date": getattr(self, 'date', ''),
+            "weekday_group": getattr(self, 'weekday_group', ''),
+            "customer": getattr(self, 'customer', 'A'),
+            "amount": round(getattr(self, 'amount', 0.0), 2),
+            "state": getattr(self, 'state', 'normal'),
         }
 
 
@@ -175,7 +199,7 @@ class DateModel(BaseModel):
 
 
 def validate_order(order_dict: dict) -> OrderModel:
-    """验证订单字典，返回OrderModel
+    """验证订单字典，返回OrderModel（兼容模式）
 
     Args:
         order_dict: 订单字典
@@ -187,7 +211,10 @@ def validate_order(order_dict: dict) -> OrderModel:
         ValueError: 如果验证失败
     """
     try:
-        return OrderModel.model_validate(order_dict)
+        if PYDANTIC_AVAILABLE:
+            return OrderModel.model_validate(order_dict)
+        else:
+            return OrderModel(**order_dict)
     except Exception as e:
         raise ValueError(f"订单数据验证失败: {e}")
 
@@ -223,7 +250,7 @@ def validate_order_state(
 
 
 def validate_amount(amount: float, min_value: float = 0.01) -> float:
-    """验证金额
+    """验证金额（兼容模式：不依赖 pydantic）
 
     Args:
         amount: 金额
@@ -235,10 +262,8 @@ def validate_amount(amount: float, min_value: float = 0.01) -> float:
     Raises:
         ValueError: 如果验证失败
     """
-    try:
-        amount_model = AmountModel(amount=amount)
-        if amount_model.amount < min_value:
-            raise ValueError(f"金额必须大于等于 {min_value}，当前值: {amount}")
-        return amount_model.amount
-    except Exception as e:
-        raise ValueError(f"金额验证失败: {e}")
+    if amount <= 0:
+        raise ValueError(f"金额必须大于0，当前值: {amount}")
+    if amount < min_value:
+        raise ValueError(f"金额必须大于等于 {min_value}，当前值: {amount}")
+    return round(amount, 2)
