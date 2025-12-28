@@ -73,7 +73,7 @@ async def setup_group_auto(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                 f"✅ {chat_type} auto messages enabled\n\n"
                 f"{chat_type} Name: {chat_title}\n"
                 f"{chat_type} ID: {chat_id}\n\n"
-                f"💡 Messages will be randomly selected from stored messages"
+                f"💡 Messages will be randomly selected from database automatically"
             )
             await update.message.reply_text(message_text)
             logger.info(f"Group auto messages enabled for {chat_type} {chat_id} ({chat_title})")
